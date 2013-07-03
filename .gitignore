@@ -1,0 +1,11 @@
+/target
+
+.DS_Store
+
+.classpath
+
+.project
+/.settings
+/sqlfire-interface.log
+/vf.sf-events.txt
+/vf.sf-license.cfg

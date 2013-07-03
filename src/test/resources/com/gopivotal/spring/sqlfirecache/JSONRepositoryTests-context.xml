@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+	xmlns:p="http://www.springframework.org/schema/p" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:cache="http://www.springframework.org/schema/cache" xmlns:aop="http://www.springframework.org/schema/aop"
+	xsi:schemaLocation="http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc-3.1.xsd
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-3.1.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/cache http://www.springframework.org/schema/cache/spring-cache.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.1.xsd">
+
+	<import resource="datasource-context.xml"/>
+	
+	<bean abstract="true" id="sqlfCache"
+		class="com.gopivotal.spring.sqlfirecache.StringCache"
+		p:dataSource-ref="dataSource" />
+
+	<bean id="cacheManager" class="org.springframework.cache.support.SimpleCacheManager">
+		<property name="caches">
+			<set>
+				<bean parent="sqlfCache" p:name="json" />
+			</set>
+		</property>
+	</bean>
+
+	<context:component-scan base-package="com.gopivotal.spring.sqlfirecache.string" />
+
+	<!-- Caching aspects -->
+	<cache:advice id="cacheAdvice" cache-manager="cacheManager">
+		<cache:caching cache="json">
+			<cache:cacheable method="getById" key="#a0" />
+			<cache:cache-put method="save" key="#a0" />
+			<cache:cache-evict method="delete" key="#a0" />
+			<cache:cache-evict method="evict" key="#a0" />
+		</cache:caching>
+	</cache:advice>
+
+	<aop:config>
+		<aop:advisor advice-ref="cacheAdvice"
+			pointcut="execution(* com.gopivotal.spring.sqlfirecache.string.JSONService.*(..))" />
+	</aop:config>
+</beans>

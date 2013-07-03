@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+	xmlns:p="http://www.springframework.org/schema/p" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:cache="http://www.springframework.org/schema/cache" xmlns:aop="http://www.springframework.org/schema/aop"
+	xsi:schemaLocation="http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc-3.1.xsd
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-3.1.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/cache http://www.springframework.org/schema/cache/spring-cache.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.1.xsd">
+
+	<!-- Defers actual connection creation / lookup until really needed. This 
+		means that cache hits will not actually require a DB connection to be retrieved 
+		from the pool -->
+	<bean id="dataSource"
+		class="org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy">
+		<property name="targetDataSource">
+			<ref local="mainDataSource" />
+		</property>
+	</bean>
+
+	<!-- Actual Datasource -->
+	<bean id="mainDataSource" class="com.jolbox.bonecp.BoneCPDataSource"
+		destroy-method="close" p:driverClass="com.vmware.sqlfire.jdbc.EmbeddedDriver"
+		p:jdbcUrl="jdbc:sqlfire:;mcast-port=0;host-data=true;persist-dd=false"
+		p:username="sa" p:password="sa" p:idleConnectionTestPeriod="60"
+		p:idleMaxAge="240" p:maxConnectionsPerPartition="30"
+		p:minConnectionsPerPartition="10" p:partitionCount="3"
+		p:acquireIncrement="5" p:statementsCacheSize="100"
+		p:releaseHelperThreads="3" />
+
+</beans>
