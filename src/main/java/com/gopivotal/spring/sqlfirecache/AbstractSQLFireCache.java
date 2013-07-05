@@ -172,12 +172,18 @@ public abstract class AbstractSQLFireCache
 		this.name = name;
 	}
 
+	/* (non-Javadoc)
+	 * @see org.springframework.cache.Cache#getName()
+	 */
 	@Override
 	public String getName()
 	{
 		return this.name;
 	}
 
+	/* (non-Javadoc)
+	 * @see org.springframework.cache.Cache#getNativeCache()
+	 */
 	@Override
 	public Object getNativeCache()
 	{
@@ -185,6 +191,9 @@ public abstract class AbstractSQLFireCache
 		return null;
 	}
 
+	/* (non-Javadoc)
+	 * @see org.springframework.cache.Cache#get(java.lang.Object)
+	 */
 	@Override
 	public ValueWrapper get(Object key)
 	{
@@ -229,6 +238,9 @@ public abstract class AbstractSQLFireCache
 	 */
 	protected abstract RowMapper<?> getRowMapper();
 
+	/* (non-Javadoc)
+	 * @see org.springframework.cache.Cache#put(java.lang.Object, java.lang.Object)
+	 */
 	@Override
 	public void put(final Object key, final Object value)
 	{
@@ -264,6 +276,9 @@ public abstract class AbstractSQLFireCache
 		template.update(getDeleteSQL() + " WHERE ID=?", key);
 	}
 
+	/* (non-Javadoc)
+	 * @see org.springframework.cache.Cache#clear()
+	 */
 	@Override
 	public void clear()
 	{
