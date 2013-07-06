@@ -18,6 +18,13 @@
  */
 package com.gopivotal.spring.sqlfirecache;
 
+import java.math.BigDecimal;
+import java.sql.Blob;
+import java.sql.Clob;
+import java.sql.Date;
+import java.sql.Time;
+import java.sql.Timestamp;
+
 /**
  * Enumeration of SQLFire Types
  * 
@@ -25,21 +32,47 @@ package com.gopivotal.spring.sqlfirecache;
  */
 public enum SQLFType
 {
-	BIGINT, BLOB, CHAR, BINARY("CHAR"), CLOB, DATE, DECIMAL, DOUBLE, FLOAT, INTEGER,
-	LONGVARCHAR("LONG VARCHAR"), LONGVARBINARY("LONG VARCHAR FOR BIT DATA"), NUMERIC, REAL, SMALLINT, TIME, TIMESTAMP,
-	VARCHAR, VARBINARY("VARCHAR");
-	
-	private String sqlName;
-	
-	SQLFType() {}
+	BIGINT(Long.class), BLOB(Blob.class), CHAR(String.class), BINARY(
+			byte[].class, "CHAR"), CLOB(Clob.class), DATE(Date.class), DECIMAL(
+			BigDecimal.class), DOUBLE(Double.class), FLOAT(Double.class),
+	INTEGER(Integer.class), LONGVARCHAR(String.class, "LONG VARCHAR"),
+	LONGVARBINARY(byte[].class, "LONG VARCHAR FOR BIT DATA"), NUMERIC(
+			BigDecimal.class), REAL(Float.class), SMALLINT(Short.class), TIME(
+			Time.class), TIMESTAMP(Timestamp.class), VARCHAR(String.class),
+	VARBINARY(byte[].class, "VARCHAR");
 
-	SQLFType(String sqlName)
+	private String sqlName;
+
+	private Class<?> javaType;
+
+	SQLFType()
 	{
+	}
+
+	SQLFType(Class<?> javaType)
+	{
+		this.javaType = javaType;
+	}
+
+	SQLFType(Class<?> javaType, String sqlName)
+	{
+		this(javaType);
 		this.sqlName = sqlName;
 	}
+
 	public String getSQLName()
 	{
-		if(sqlName == null) return name();
-		else return sqlName;
+		if (sqlName == null)
+			return name();
+		else
+			return sqlName;
+	}
+
+	/**
+	 * @return The Java type used for this SQLFType.
+	 */
+	public Class<?> getJavaType()
+	{
+		return javaType;
 	}
 }

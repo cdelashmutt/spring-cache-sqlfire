@@ -18,14 +18,17 @@
  */
 package com.gopivotal.spring.sqlfirecache;
 
-import java.util.Arrays;
 import java.util.List;
 
-import org.springframework.jdbc.core.PreparedStatementSetter;
+import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.SingleColumnRowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.util.StringUtils;
 
 import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 /**
@@ -43,11 +46,62 @@ public abstract class AbstractColumnDefinedSQLFireCache
 	extends AbstractSQLFireCache
 {
 
-	private Function<ColumnDefinition,String> nameFunction = new Function<ColumnDefinition, String>()
+	/**
+	 * TODO: Describe valuePrepend
+	 */
+	private String valuePrepend = "v_";
+
+	/**
+	 * @return the valuePrepend
+	 */
+	public String getValuePrepend()
+	{
+		return valuePrepend;
+	}
+
+	/**
+	 * @param valuePrepend the valuePrepend to set
+	 */
+	public void setValuePrepend(String valuePrepend)
+	{
+		this.valuePrepend = valuePrepend;
+	}
+
+	/**
+	 * TODO: Describe keyPrepend
+	 */
+	private String keyPrepend = "k_";
+
+	
+	/**
+	 * @return the keyPrepend
+	 */
+	public String getKeyPrepend()
+	{
+		return keyPrepend;
+	}
+
+	/**
+	 * @param keyPrepend the keyPrepend to set
+	 */
+	public void setKeyPrepend(String keyPrepend)
+	{
+		this.keyPrepend = keyPrepend;
+	}
+
+	private Function<ColumnDefinition, String> idNameFunction = new Function<ColumnDefinition, String>()
 	{
 		public String apply(ColumnDefinition input)
 		{
-			return input.getName();
+			return keyPrepend + input.getName();
+		}
+	};
+
+	private Function<ColumnDefinition, String> valueNameFunction = new Function<ColumnDefinition, String>()
+	{
+		public String apply(ColumnDefinition input)
+		{
+			return valuePrepend + input.getName();
 		}
 	};
 
@@ -55,18 +109,19 @@ public abstract class AbstractColumnDefinedSQLFireCache
 	 * Creates a Create SQL statement fragment for the specified column
 	 * definitions.
 	 * 
+	 * @param The string to prepend to the column name.
 	 * @param columnDefs
 	 *            The column definitions to build a statement for.
 	 * @return The SQL fragment for the specified columns.
 	 */
-	private String buildCreateColumnsFragment(List<ColumnDefinition> columnDefs)
+	private String buildCreateColumnsFragment(final String prepend, List<ColumnDefinition> columnDefs)
 	{
-		return StringUtils.collectionToDelimitedString(
-				Lists.transform(columnDefs, new Function<ColumnDefinition, String>()
+		return StringUtils.collectionToDelimitedString(Lists.transform(
+				columnDefs, new Function<ColumnDefinition, String>()
 				{
 					public String apply(ColumnDefinition input)
 					{
-						return input.buildColumnDefinitionSQL();
+						return prepend + input.getName() + " " + input.buildColumnTypeDefinitionSQL();
 					}
 				}), ", ");
 	}
@@ -83,8 +138,7 @@ public abstract class AbstractColumnDefinedSQLFireCache
 	{
 		return "PRIMARY KEY("
 				+ StringUtils.collectionToDelimitedString(
-						Lists.transform(idColumns, nameFunction),
-						", ") + ")";
+						Lists.transform(idColumns, idNameFunction), ", ") + ")";
 	}
 
 	/*
@@ -97,8 +151,8 @@ public abstract class AbstractColumnDefinedSQLFireCache
 	protected String getCreateSQL()
 	{
 		return "CREATE TABLE " + getFQTableName() + " ("
-				+ buildCreateColumnsFragment(getIdColumns()) + ", "
-				+ buildCreateColumnsFragment(getDataColumns()) + ", "
+				+ buildCreateColumnsFragment(keyPrepend, getIdColumns()) + ", "
+				+ buildCreateColumnsFragment(valuePrepend, getDataColumns()) + ", "
 				+ buildPrimaryKeyClause(getIdColumns()) + ")"
 				+ " PARTITION BY PRIMARY KEY";
 	}
@@ -110,49 +164,74 @@ public abstract class AbstractColumnDefinedSQLFireCache
 	 */
 	protected abstract List<ColumnDefinition> getDataColumns();
 
-	/**
-	 * Sets the appropriate parameters for the delete statement
-	 * 
-	 * @return A parameter setter.
+	/* (non-Javadoc)
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getDeletePreparedStatementSetter(java.lang.Object)
 	 */
 	@Override
-	protected abstract PreparedStatementSetter getDeletePreparedStatementSetter(
-			final Object key);
+	protected SqlParameterSource getDeletePreparedStatementSetter(
+			final Object key)
+	{
+		return getIdParameterSource(key);
+	}
 
 	/**
-	 * Provides the delete statement root necessary to evict individual entries,
-	 * or clear the entire table.
+	 * Provides a default strategy for producing a primary key based parameter source.
 	 * 
-	 * @return The delete statement
+	 * Single valued keys are simply returned as the value for the single id column.
+	 * 
+	 * Multi-valued keys are mapped from the property names of the passed object.
+	 *
+	 * @param key The key value object to use.
+	 * @return The parameter source
+	 */
+	protected SqlParameterSource getIdParameterSource(final Object key)
+	{
+		if(getIdColumns().size() == 1)
+		{
+			return new MapSqlParameterSource(keyPrepend + getIdColumns().get(0).getName(), key);
+		}
+		else
+		{
+			return new PrependedBeanPropertySqlParameterSource(key, keyPrepend);
+		}
+	}
+
+	/* (non-Javadoc)
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getDeleteSQL()
 	 */
 	@Override
 	protected String getDeleteSQL()
 	{
-		return "delete from " + getFQTableName();
+		return "DELETE FROM " + getFQTableName();
 	}
 
-	private Function<ColumnDefinition, String> nameAndPlaceholderFunction = new Function<ColumnDefinition, String>()
+	private Function<ColumnDefinition, String> idNameAndPlaceholderFunction = new Function<ColumnDefinition, String>()
 	{
 		@Override
 		public String apply(ColumnDefinition input)
 		{
-			return ((ColumnDefinition) input).getName() + "=?";
+			return keyPrepend + input.getName() + "=" + ":" + keyPrepend + input.getName();
 		}
 	};
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see
-	 * com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getDeleteWhereClause
-	 * ()
+	private Function<ColumnDefinition, String> valueNameAndPlaceholderFunction = new Function<ColumnDefinition, String>()
+	{
+		@Override
+		public String apply(ColumnDefinition input)
+		{
+			return valuePrepend + input.getName() + "=" + ":" + valuePrepend + input.getName();
+		}
+	};
+
+	/* (non-Javadoc)
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getDeleteWhereClause()
 	 */
 	@Override
 	protected String getDeleteWhereClause()
 	{
 		return "WHERE "
-				+ StringUtils.collectionToDelimitedString(Lists.transform(getIdColumns(),
-						nameAndPlaceholderFunction), ", ");
+				+ StringUtils.collectionToDelimitedString(Lists.transform(
+						getIdColumns(), idNameAndPlaceholderFunction), ", ");
 	}
 
 	/**
@@ -172,27 +251,48 @@ public abstract class AbstractColumnDefinedSQLFireCache
 	 */
 	protected abstract List<ColumnDefinition> getIdColumns();
 
-	/**
-	 * Provides a PreparedStatementSetter used to put values into an insert
-	 * statement
-	 * 
-	 * @param key
-	 *            The key to use for an insert into SQLFire
-	 * @param value
-	 *            The value to store in SQLFire
-	 * @return The PreparedStatementSetter that can properly set up the
+	/* (non-Javadoc)
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getInsertPreparedStatementSetter(java.lang.Object, java.lang.Object)
 	 */
 	@Override
-	protected abstract PreparedStatementSetter getInsertPreparedStatementSetter(
-			final Object key, final Object value);
+	protected SqlParameterSource getInsertPreparedStatementSetter(
+			final Object key, final Object value)
+	{
+		return new PrioritySqlParameterSource(
+				getPrependedSqlParameterSource(keyPrepend, getIdColumns(), key)
+				, getPrependedSqlParameterSource(valuePrepend, getDataColumns(), value));
+	}
 
-	/**
-	 * Builds the statement used to support the put cache operation.
-	 * 
-	 * This statement is typically an insert that fills all the columns of the
-	 * table needed to store the cached object.
-	 * 
-	 * @return A statement used to put objects into the cache.
+	private SqlParameterSource getPrependedSqlParameterSource(final String prepend, final List<ColumnDefinition> columns, final Object obj)
+	{
+		if(columns.size() == 1)
+		{
+			return new MapSqlParameterSource(prepend + columns.get(0).getName(), obj);
+		}
+		else
+		{
+			return new PrependedBeanPropertySqlParameterSource(obj, prepend);
+		}
+	}
+
+	private Function<ColumnDefinition, String> idPlaceHolderFunction = new Function<ColumnDefinition, String>()
+	{
+		public String apply(ColumnDefinition input)
+		{
+			return ":" + keyPrepend + input.getName();
+		}
+	};
+
+	private Function<ColumnDefinition, String> valuePlaceHolderFunction = new Function<ColumnDefinition, String>()
+	{
+		public String apply(ColumnDefinition input)
+		{
+			return ":" + valuePrepend + input.getName();
+		}
+	};
+
+	/* (non-Javadoc)
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getInsertSQL()
 	 */
 	@Override
 	protected String getInsertSQL()
@@ -200,25 +300,39 @@ public abstract class AbstractColumnDefinedSQLFireCache
 		String insertSQL = "insert into "
 				+ getFQTableName()
 				+ "("
-				+ StringUtils.collectionToDelimitedString(Lists.transform(getIdColumns(),
-						nameFunction), ", ")
+				+ StringUtils.collectionToDelimitedString(
+						Lists.transform(getIdColumns(), idNameFunction), ", ")
 				+ ", "
-				+ StringUtils.collectionToDelimitedString(Lists.transform(getDataColumns(),
-						nameFunction), ", ")
-				+ ") VALUES (";
-		Character placeHolders[] = new Character[getIdColumns().size() + getDataColumns().size()];
-		Arrays.fill(placeHolders, '?');
-		insertSQL += StringUtils.arrayToCommaDelimitedString(placeHolders) + ")";
+				+ StringUtils.collectionToDelimitedString(
+						Lists.transform(getDataColumns(), valueNameFunction), ", ")
+				+ ") VALUES ("
+				+ StringUtils.arrayToDelimitedString(Iterables.toArray(
+						Iterables.concat(Iterables.transform(getIdColumns(), idPlaceHolderFunction),
+								Iterables.transform(getDataColumns(), valuePlaceHolderFunction)),
+						String.class), ", ") + ")";
 		return insertSQL;
 	}
 
-	/**
-	 * Maps returned rows from SQLFire to objects.
-	 * 
-	 * @return A RowMapper
+	/* (non-Javadoc)
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getRowMapper()
 	 */
 	@Override
-	protected abstract RowMapper<?> getRowMapper();
+	protected RowMapper<?> getRowMapper()
+	{
+		if(getDataColumns().size() == 1)
+		{
+			return getSingleColumnRowMapper(getDataColumns().get(0).getType().getJavaType());
+		}
+		else
+		{
+			return BeanPropertyRowMapper.newInstance(Object.class);
+		}
+	}
+	
+	private <T> SingleColumnRowMapper<T> getSingleColumnRowMapper(Class<T> type)
+	{
+		return new SingleColumnRowMapper<T>(type);
+	}
 
 	/*
 	 * (non-Javadoc)
@@ -227,29 +341,26 @@ public abstract class AbstractColumnDefinedSQLFireCache
 	 * getSelectPreparedStatementSetter(java.lang.Object)
 	 */
 	@Override
-	protected abstract PreparedStatementSetter getSelectPreparedStatementSetter(
-			final Object key);
+	protected SqlParameterSource getSelectPreparedStatementSetter(
+			final Object key)
+	{
+		return getIdParameterSource(key);
+	}
 
-	/**
-	 * Returns the query string to support the get operation for the cache.
-	 * 
-	 * Typically the query will return the columns needed to reconstruct the
-	 * object from the cached representation.
-	 * 
-	 * @return A string representing the query for looking up a single entry in
-	 *         the cache table.
+	/* (non-Javadoc)
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getSelectSQL()
 	 */
 	@Override
 	protected String getSelectSQL()
 	{
 		return "SELECT "
-				+ StringUtils.collectionToDelimitedString(Lists.transform(getDataColumns(),
-						nameFunction), ", ")
+				+ StringUtils.collectionToDelimitedString(
+						Lists.transform(getDataColumns(), valueNameFunction), ", ")
 				+ " FROM "
 				+ getFQTableName()
 				+ " WHERE "
-				+ StringUtils.collectionToDelimitedString(Lists.transform(getIdColumns(),
-						nameAndPlaceholderFunction), ", ");
+				+ StringUtils.collectionToDelimitedString(Lists.transform(
+						getIdColumns(), idNameAndPlaceholderFunction), ", ");
 	}
 
 	/*
@@ -259,13 +370,16 @@ public abstract class AbstractColumnDefinedSQLFireCache
 	 * getUpdatePreparedStatementSetter(java.lang.Object, java.lang.Object)
 	 */
 	@Override
-	protected abstract PreparedStatementSetter getUpdatePreparedStatementSetter(
-			Object key, Object value);
+	protected SqlParameterSource getUpdatePreparedStatementSetter(
+			Object key, Object value)
+	{
+		return new PrioritySqlParameterSource(
+				getPrependedSqlParameterSource(keyPrepend, getIdColumns(), key)
+				, getPrependedSqlParameterSource(valuePrepend, getDataColumns(), value));		
+	}
 
-	/**
-	 * Gets the update statement for this cache table.
-	 * 
-	 * @return The SQL statement to update the data in the cache table
+	/* (non-Javadoc)
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getUpdateSQL()
 	 */
 	@Override
 	protected String getUpdateSQL()
@@ -273,11 +387,11 @@ public abstract class AbstractColumnDefinedSQLFireCache
 		return "UPDATE "
 				+ getFQTableName()
 				+ " SET "
-				+ StringUtils.collectionToDelimitedString(Lists.transform(getDataColumns(),
-						nameAndPlaceholderFunction), ", ")
+				+ StringUtils.collectionToDelimitedString(Lists.transform(
+						getDataColumns(), valueNameAndPlaceholderFunction), ", ")
 				+ " WHERE "
-				+ StringUtils.collectionToDelimitedString(Lists.transform(getIdColumns(),
-						nameAndPlaceholderFunction), ", ");
+				+ StringUtils.collectionToDelimitedString(Lists.transform(
+						getIdColumns(), idNameAndPlaceholderFunction), ", ");
 	}
 
 }

@@ -34,11 +34,13 @@ import org.springframework.cache.support.SimpleValueWrapper;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.PreparedStatementSetter;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 
 /**
- * A simple base class for caches that use SQL Statements to retrieve and store data in SQLFire.
+ * A simple base class for caches that use SQL Statements to retrieve and store
+ * data in SQLFire.
  * 
  * @author cdelashmutt
  */
@@ -54,17 +56,23 @@ public abstract class AbstractSQLFireCache
 
 	private JdbcTemplate template;
 
+	private NamedParameterJdbcTemplate namedTemplate;
+
 	private Logger log = LoggerFactory
 			.getLogger(AbstractColumnDefinedSQLFireCache.class);
 
-	/* (non-Javadoc)
-	 * @see org.springframework.beans.factory.InitializingBean#afterPropertiesSet()
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see
+	 * org.springframework.beans.factory.InitializingBean#afterPropertiesSet()
 	 */
 	@Override
 	public void afterPropertiesSet()
 		throws Exception
 	{
 		template = new JdbcTemplate(dataSource);
+		namedTemplate = new NamedParameterJdbcTemplate(template);
 		template.execute(new ConnectionCallback<Object>()
 		{
 			private void createTable(Statement stm)
@@ -148,7 +156,9 @@ public abstract class AbstractSQLFireCache
 		});
 	}
 
-	/* (non-Javadoc)
+	/*
+	 * (non-Javadoc)
+	 * 
 	 * @see org.springframework.cache.Cache#clear()
 	 */
 	@Override
@@ -157,17 +167,21 @@ public abstract class AbstractSQLFireCache
 		template.execute(getDeleteSQL());
 	}
 
-	/* (non-Javadoc)
+	/*
+	 * (non-Javadoc)
+	 * 
 	 * @see org.springframework.cache.Cache#evict(java.lang.Object)
 	 */
 	@Override
 	public void evict(Object key)
 	{
-		template.update(getDeleteSQL() + " " + getDeleteWhereClause(),
+		namedTemplate.update(getDeleteSQL() + " " + getDeleteWhereClause(),
 				getDeletePreparedStatementSetter(key));
 	}
 
-	/* (non-Javadoc)
+	/*
+	 * (non-Javadoc)
+	 * 
 	 * @see org.springframework.cache.Cache#get(java.lang.Object)
 	 */
 	@Override
@@ -175,7 +189,7 @@ public abstract class AbstractSQLFireCache
 	{
 		try
 		{
-			List<?> results = template.query(getSelectSQL(),
+			List<?> results = namedTemplate.query(getSelectSQL(),
 					getSelectPreparedStatementSetter(key), getRowMapper());
 
 			if (results.size() == 0)
@@ -184,9 +198,9 @@ public abstract class AbstractSQLFireCache
 			}
 			else if (results.size() > 1)
 			{
-				log.warn("Multiple results returned for cache get select statement.  Check the validity " +
-						"of the create table statement and select statement to ensure that the id " +
-						"column(s) for the table are guarenteed to be unique.");
+				log.warn("Multiple results returned for cache get select statement.  Check the validity "
+						+ "of the create table statement and select statement to ensure that the id "
+						+ "column(s) for the table are guarenteed to be unique.");
 				return null;
 			}
 			else
@@ -202,53 +216,75 @@ public abstract class AbstractSQLFireCache
 	}
 
 	/**
-	 * Returns the create SQL string used for creating the cache table, if needed.
-	 *
+	 * Returns the create SQL string used for creating the cache table, if
+	 * needed.
+	 * 
 	 * @return The create SQL string.
 	 */
 	protected abstract String getCreateSQL();
 
 	/**
-	 * Provides a setter that can set any necessary parameters in the delete SQL String.
-	 *
-	 * @param key The key object used to identify a cached object.
-	 * @return The setter that can set parameters on the prepared delete SQL Statement.
+	 * Provides a setter that can set any necessary parameters in the delete SQL
+	 * String.
+	 * 
+	 * @param key
+	 *            The key object used to identify a cached object.
+	 * @return The setter that can set parameters on the prepared delete SQL
+	 *         Statement.
 	 */
-	protected abstract PreparedStatementSetter getDeletePreparedStatementSetter(
+	protected abstract SqlParameterSource getDeletePreparedStatementSetter(
 			final Object key);
 
 	/**
-	 * Returns the delete SQL statement used to remove every cached object in the table.
-	 *
+	 * Returns the delete SQL statement used to remove every cached object in
+	 * the table.
+	 * 
 	 * @return The delete SQL string.
 	 */
 	protected abstract String getDeleteSQL();
 
 	/**
-	 * Returns a fragment WHERE clause used with the getDeleteSQL statement to remove a single cached object in the table.
-	 *
+	 * Returns a fragment WHERE clause used with the getDeleteSQL statement to
+	 * remove a single cached object in the table.
+	 * 
+	 * The statement fragment should contain placeholders for the parameters
+	 * that need to be passed in to the statement. The placeholders should be in
+	 * the form of a named placeholder preceded by a colon, as in the same form
+	 * used for named parameters in the NamedParameterJdbcTemplate.
+	 * 
 	 * @return The delete SQL WHERE clause fragment.
 	 */
 	protected abstract String getDeleteWhereClause();
 
 	/**
-	 * Provides a setter that can set any necessary parameters in the insert SQL String.
-	 *
-	 * @param key The key object used to lookup a cached object.
-	 * @param value The value object to store in the cache.
-	 * @return The setter that can set parameters on the prepared insert SQL Statement.
+	 * Provides a setter that can set any necessary parameters in the insert SQL
+	 * String.
+	 * 
+	 * @param key
+	 *            The key object used to lookup a cached object.
+	 * @param value
+	 *            The value object to store in the cache.
+	 * @return The setter that can set parameters on the prepared insert SQL
+	 *         Statement.
 	 */
-	protected abstract PreparedStatementSetter getInsertPreparedStatementSetter(
+	protected abstract SqlParameterSource getInsertPreparedStatementSetter(
 			final Object key, final Object value);
 
 	/**
 	 * Returns the insert SQL statement used to store cached objects.
-	 *
+	 * 
+	 * The statement should contain placeholders for the parameters that need to
+	 * be passed in to the statement. The placeholders should be in the form of
+	 * a named placeholder preceded by a colon, as in the same form used for
+	 * named parameters in the NamedParameterJdbcTemplate.
+	 * 
 	 * @return The insert SQL string.
 	 */
 	protected abstract String getInsertSQL();
 
-	/* (non-Javadoc)
+	/*
+	 * (non-Javadoc)
+	 * 
 	 * @see org.springframework.cache.Cache#getName()
 	 */
 	@Override
@@ -257,7 +293,9 @@ public abstract class AbstractSQLFireCache
 		return this.name;
 	}
 
-	/* (non-Javadoc)
+	/*
+	 * (non-Javadoc)
+	 * 
 	 * @see org.springframework.cache.Cache#getNativeCache()
 	 */
 	@Override
@@ -268,8 +306,9 @@ public abstract class AbstractSQLFireCache
 	}
 
 	/**
-	 * Maps a returned record from for the execution of the select SQL statement to an object.
-	 *
+	 * Maps a returned record from for the execution of the select SQL statement
+	 * to an object.
+	 * 
 	 * @return The row mapper for the select SQL statement.
 	 */
 	protected abstract RowMapper<?> getRowMapper();
@@ -283,51 +322,71 @@ public abstract class AbstractSQLFireCache
 	}
 
 	/**
-	 * Provides a setter that can set any necessary parameters in the select SQL String.
-	 *
-	 * @param key The key object used to lookup a cached object.
-	 * @return The setter that can set parameters on the prepared select SQL Statement.
+	 * Provides a setter that can set any necessary parameters in the select SQL
+	 * String.
+	 * 
+	 * @param key
+	 *            The key object used to lookup a cached object.
+	 * @return The setter that can set parameters on the prepared select SQL
+	 *         Statement.
 	 */
-	protected abstract PreparedStatementSetter getSelectPreparedStatementSetter(
+	protected abstract SqlParameterSource getSelectPreparedStatementSetter(
 			final Object key);
 
 	/**
 	 * Returns the select SQL statement used to lookup cached objects.
-	 *
+	 * 
+	 * The statement should contain placeholders for the parameters that need to
+	 * be passed in to the statement. The placeholders should be in the form of
+	 * a named placeholder preceded by a colon, as in the same form used for
+	 * named parameters in the NamedParameterJdbcTemplate.
+	 * 
 	 * @return The select SQL string.
 	 */
 	protected abstract String getSelectSQL();
 
 	/**
-	 * Provides a setter that can set any necessary parameters in the update SQL String.
-	 *
-	 * @param key The key object used to identify a cached object.
-	 * @param value The value object to store in the cache.
-	 * @return The setter that can set parameters on the prepared update SQL Statement.
+	 * Provides a setter that can set any necessary parameters in the update SQL
+	 * String.
+	 * 
+	 * @param key
+	 *            The key object used to identify a cached object.
+	 * @param value
+	 *            The value object to store in the cache.
+	 * @return The setter that can set parameters on the prepared update SQL
+	 *         Statement.
 	 */
-	protected abstract PreparedStatementSetter getUpdatePreparedStatementSetter(
+	protected abstract SqlParameterSource getUpdatePreparedStatementSetter(
 			Object key, Object value);
 
 	/**
 	 * Returns the update SQL statement used to update cached objects.
-	 *
+	 * 
+	 * The statement should contain placeholders for the parameters that need to
+	 * be passed in to the statement. The placeholders should be in the form of
+	 * a named placeholder preceded by a colon, as in the same form used for
+	 * named parameters in the NamedParameterJdbcTemplate.
+	 * 
 	 * @return The update SQL string.
 	 */
 	protected abstract String getUpdateSQL();
 
-	/* (non-Javadoc)
-	 * @see org.springframework.cache.Cache#put(java.lang.Object, java.lang.Object)
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.springframework.cache.Cache#put(java.lang.Object,
+	 * java.lang.Object)
 	 */
 	@Override
 	public void put(final Object key, final Object value)
 	{
 		try
 		{
-			int updateCount = template.update(getUpdateSQL(),
+			int updateCount = namedTemplate.update(getUpdateSQL(),
 					getUpdatePreparedStatementSetter(key, value));
 			if (updateCount == 0)
 			{
-				template.update(getInsertSQL(),
+				namedTemplate.update(getInsertSQL(),
 						getInsertPreparedStatementSetter(key, value));
 			}
 		}
@@ -359,7 +418,8 @@ public abstract class AbstractSQLFireCache
 	}
 
 	/**
-	 * @param schemaName the schemaName to set
+	 * @param schemaName
+	 *            the schemaName to set
 	 */
 	public void setSchemaName(String schemaName)
 	{

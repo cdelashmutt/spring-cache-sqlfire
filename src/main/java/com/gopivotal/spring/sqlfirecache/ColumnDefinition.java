@@ -202,14 +202,13 @@ public class ColumnDefinition
 	}
 
 	/**
-	 * Creates an SQL column definition fragment suitable for use in a CREATE TABLE statement.
+	 * Creates an SQL column type definition fragment suitable for use in a CREATE TABLE statement.
 	 *
-	 * @param def
-	 * @return
+	 * @return A type string with no column name that is suitable for appending to the column name.
 	 */
-	public String buildColumnDefinitionSQL()
+	public String buildColumnTypeDefinitionSQL()
 	{
-		String columnDef = this.getName() + " " + this.getType().getSQLName();
+		String columnDef = this.getType().getSQLName();
 		switch (this.getType())
 		{
 			//Possibly Length, and Suffix needed
@@ -262,5 +261,16 @@ public class ColumnDefinition
 				break;
 		}
 		return columnDef;
+	}
+
+	/* (non-Javadoc)
+	 * @see java.lang.Object#toString()
+	 */
+	@Override
+	public String toString()
+	{
+		return "ColumnDefinition [name=" + name + ", type=" + type
+				+ ", length=" + length + ", unit=" + unit + ", precision="
+				+ precision + ", scale=" + scale + "]";
 	}
 }

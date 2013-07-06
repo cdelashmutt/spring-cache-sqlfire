@@ -18,20 +18,22 @@
  */
 package com.gopivotal.spring.sqlfirecache;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.sql.Blob;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.Arrays;
 import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.jdbc.core.PreparedStatementSetter;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
+import org.springframework.jdbc.core.support.SqlLobValue;
 
 /**
  * A simple SQLFire cache definition that serializes/de-serializes objects into
@@ -47,7 +49,8 @@ public class SerializedObjectCache
 {
 	private Logger log = LoggerFactory.getLogger(SerializedObjectCache.class);
 
-	final List<ColumnDefinition> idColumns = Arrays.asList(new ColumnDefinition("ID", SQLFType.INTEGER));
+	final ColumnDefinition idColumn = new ColumnDefinition("ID", SQLFType.INTEGER);
+	final List<ColumnDefinition> idColumns = Arrays.asList(idColumn);
 
 	/* (non-Javadoc)
 	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getIdColumns()
@@ -59,7 +62,8 @@ public class SerializedObjectCache
 		return idColumns;
 	}
 
-	final List<ColumnDefinition> dataColumns = Arrays.asList(new ColumnDefinition("OBJECT", SQLFType.BLOB));
+	final ColumnDefinition dataColumn = new ColumnDefinition("OBJECT", SQLFType.BLOB);
+	final List<ColumnDefinition> dataColumns = Arrays.asList(dataColumn);
 	/* (non-Javadoc)
 	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getDataColumns()
 	 */
@@ -68,31 +72,6 @@ public class SerializedObjectCache
 	{
 		return dataColumns;
 	}
-	
-	private PreparedStatementSetter getIdPreparedStatementSetter(final Integer key)
-	{
-		return new PreparedStatementSetter()
-		{
-			@Override
-			public void setValues(PreparedStatement ps)
-				throws SQLException
-			{
-				ps.setInt(1, key);
-			}
-		};
-
-	}
-	
-	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getSelectPreparedStatementSetter(java.lang.Object)
-	 */
-	@Override
-	protected PreparedStatementSetter getSelectPreparedStatementSetter(
-			Object key)
-	{
-		// This will be a string since our ID is a VARCHAR
-		return getIdPreparedStatementSetter((Integer)key);
-	}
 
 	final RowMapper<Object> rowMapper = new RowMapper<Object>()
 			{
@@ -100,7 +79,7 @@ public class SerializedObjectCache
 		public Object mapRow(ResultSet rs, int rowNum)
 			throws SQLException
 		{
-			Blob blob = rs.getBlob("OBJECT");
+			Blob blob = rs.getBlob(getValuePrepend() + "OBJECT");
 			ObjectInputStream ois = null;
 			Object value = null;
 			try
@@ -129,7 +108,6 @@ public class SerializedObjectCache
 		}
 	};
 
-	
 	/* (non-Javadoc)
 	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getRowMapper()
 	 */
@@ -142,105 +120,105 @@ public class SerializedObjectCache
 	/* (non-Javadoc)
 	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getInsertPreparedStatementSetter(java.lang.Object, java.lang.Object)
 	 */
-	protected PreparedStatementSetter getInsertPreparedStatementSetter(
+	protected SqlParameterSource getInsertPreparedStatementSetter(
 			final Object key, final Object value)
 	{
-		final int intKey = (Integer) key;
-
-		return new PreparedStatementSetter()
-		{
-			@Override
-			public void setValues(PreparedStatement ps)
-				throws SQLException
-			{
-				ps.setInt(1, intKey);
-				Blob blob = ps.getConnection().createBlob();
-				ObjectOutputStream oos = null;
-				try
-				{
-					oos = new ObjectOutputStream(blob.setBinaryStream(1));
-					oos.writeObject(value);
-					ps.setBlob(2, blob);
-				}
-				catch (IOException e)
-				{
-					throw new RuntimeException(
-							"Error serializing object to blob store: ", e);
-				}
-				finally
-				{
-					try
-					{
-						if (oos != null)
-							oos.close();
-					}
-					catch (IOException e)
-					{
-						log.warn(
-								"Exception while closing Blob output stream: ",
-								e);
-					}
-				}
-			}
-		};
-	}
-
-	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getDeletePreparedStatementSetter(java.lang.Object)
-	 */
-	@Override
-	protected PreparedStatementSetter getDeletePreparedStatementSetter(
-			Object key)
-	{
-		// This will be a string since our ID is a VARCHAR
-		return getIdPreparedStatementSetter((Integer)key);
+		return new IntBlobParameterSource(key, value);
 	}
 
 	/* (non-Javadoc)
 	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getUpdatePreparedStatementSetter(java.lang.Object, java.lang.Object)
 	 */
 	@Override
-	protected PreparedStatementSetter getUpdatePreparedStatementSetter(
+	protected SqlParameterSource getUpdatePreparedStatementSetter(
 			final Object key, final Object value)
 	{
-		final int intKey = (Integer) key;
+		return new IntBlobParameterSource(key, value);
+	}
 
-		return new PreparedStatementSetter()
+	private class IntBlobParameterSource
+	implements SqlParameterSource
+	{
+		final Object key;
+		final Object value;
+		final String prependedIdColumn = getKeyPrepend() + idColumn.getName();
+		final String prependedDataColumn = getValuePrepend() + dataColumn.getName();
+		
+		/**
+		 * TODO: Describe IntBlobParameterSource constructor
+		 *
+		 */
+		public IntBlobParameterSource(Object key, Object value)
 		{
-			@Override
-			public void setValues(PreparedStatement ps)
-				throws SQLException
+			super();
+			this.key = key;
+			this.value = value;
+		}
+
+		@Override
+		public boolean hasValue(String paramName)
+		{
+			return prependedIdColumn.equals(paramName)
+				|| prependedDataColumn.equals(paramName);
+		}
+
+		@Override
+		public Object getValue(String paramName)
+			throws IllegalArgumentException
+		{
+			if(prependedDataColumn.equals(paramName))
 			{
-				Blob blob = ps.getConnection().createBlob();
-				ObjectOutputStream oos = null;
+				ByteArrayOutputStream bos = new ByteArrayOutputStream();
 				try
 				{
-					oos = new ObjectOutputStream(blob.setBinaryStream(1));
+					ObjectOutputStream oos = new ObjectOutputStream(bos);
 					oos.writeObject(value);
-					ps.setBlob(1, blob);
 				}
-				catch (IOException e)
+				catch(IOException e)
 				{
-					throw new RuntimeException(
-							"Error serializing object to blob store: ", e);
+					throw new RuntimeException("Error serializing object to cache", e);
 				}
-				finally
-				{
-					try
-					{
-						if (oos != null)
-							oos.close();
-					}
-					catch (IOException e)
-					{
-						log.warn(
-								"Exception while closing Blob output stream: ",
-								e);
-					}
-				}
-				ps.setInt(2, intKey);
+				return new SqlLobValue(bos.toByteArray());
 			}
-		};
-	}
+			else if(prependedIdColumn.equals(paramName))
+			{
+				return key;
+			}
+			else
+			{
+				throw new IllegalArgumentException("No parameter with name " + paramName);
+			}
+		}
+
+		@Override
+		public int getSqlType(String paramName)
+		{
+			if(prependedDataColumn.equals(paramName))
+				return Types.BLOB;
+			else if(prependedIdColumn.equals(paramName))
+			{
+				return Types.INTEGER;
+			}
+			else
+			{
+				return TYPE_UNKNOWN;
+			}
+		}
+
+		@Override
+		public String getTypeName(String paramName)
+		{
+			if(prependedDataColumn.equals(paramName))
+				return "BLOB";
+			else if(prependedIdColumn.equals(paramName))
+			{
+				return "INTEGER";
+			}
+			else
+			{
+				return null;
+			}
+		}
+	};
 
 }

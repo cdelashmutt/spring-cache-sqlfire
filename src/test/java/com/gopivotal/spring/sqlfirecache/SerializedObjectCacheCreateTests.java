@@ -38,7 +38,7 @@ import org.junit.Test;
  *
  * @author cdelashmutt
  */
-public class SerializedObjectCacheTests
+public class SerializedObjectCacheCreateTests
 {
 
 	@Rule
@@ -69,7 +69,7 @@ public class SerializedObjectCacheTests
 			oneOf(dataSource).getConnection(); will(returnValue(con));
 			oneOf(con).createStatement(); will(returnValue(stm));
 			oneOf(stm).execute(with(equal("CREATE SCHEMA " + cache.getSchemaName())));
-			oneOf(stm).execute(with(equal("CREATE TABLE " + cache.getSchemaName() + ".books (ID INTEGER, OBJECT BLOB, PRIMARY KEY(ID)) PARTITION BY PRIMARY KEY")));
+			oneOf(stm).execute(with(equal("CREATE TABLE " + cache.getSchemaName() + ".books (k_ID INTEGER, v_OBJECT BLOB, PRIMARY KEY(k_ID)) PARTITION BY PRIMARY KEY")));
 			allowing(con);
 			allowing(stm);
 		}});
@@ -96,7 +96,7 @@ public class SerializedObjectCacheTests
 					+ cache.getName().toUpperCase() + "'"); will(returnValue(tableRS));
 			oneOf(tableRS).next(); inSequence(tableRSSeq); will(returnValue(false));
 			oneOf(tableRS).close(); inSequence(tableRSSeq);
-			oneOf(stm).execute("CREATE TABLE " + cache.getSchemaName() + ".books (ID INTEGER, OBJECT BLOB, PRIMARY KEY(ID)) PARTITION BY PRIMARY KEY");
+			oneOf(stm).execute("CREATE TABLE " + cache.getSchemaName() + ".books (k_ID INTEGER, v_OBJECT BLOB, PRIMARY KEY(k_ID)) PARTITION BY PRIMARY KEY");
 			oneOf(stm).close();
 			oneOf(con).close();
 		}});
