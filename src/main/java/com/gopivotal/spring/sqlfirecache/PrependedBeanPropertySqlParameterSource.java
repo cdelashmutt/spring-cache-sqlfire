@@ -89,7 +89,7 @@ public class PrependedBeanPropertySqlParameterSource
 	private String removePrepend(String paramName)
 	{
 		if(paramName.startsWith(prepend))
-			return paramName.substring(prepend.length()-1);
+			return paramName.substring(prepend.length());
 		else
 			return paramName;
 	}

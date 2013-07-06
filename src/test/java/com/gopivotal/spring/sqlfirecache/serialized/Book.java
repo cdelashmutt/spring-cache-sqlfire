@@ -76,6 +76,8 @@ implements Serializable
 	Integer id;
 
 	String title;
+	
+	String author;
 
 	/**
 	 * Creates an empty book object
@@ -133,13 +135,30 @@ implements Serializable
 		this.title = title;
 	}
 
+	/**
+	 * @return the author
+	 */
+	public String getAuthor()
+	{
+		return author;
+	}
+
+	/**
+	 * @param author the author to set
+	 */
+	public void setAuthor(String author)
+	{
+		this.author = author;
+	}
+
 	/* (non-Javadoc)
 	 * @see java.lang.Object#toString()
 	 */
 	@Override
 	public String toString()
 	{
-		return "Book [id=" + id + ", title=" + title + "]";
+		return "Book [id=" + id + ", title=" + title + ", author=" + author
+				+ "]";
 	}
 	
 }
