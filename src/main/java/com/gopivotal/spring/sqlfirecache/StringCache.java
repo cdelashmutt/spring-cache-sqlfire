@@ -21,7 +21,8 @@ package com.gopivotal.spring.sqlfirecache;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Types;
+import java.util.Arrays;
+import java.util.List;
 
 import org.springframework.jdbc.core.PreparedStatementSetter;
 import org.springframework.jdbc.core.RowMapper;
@@ -32,62 +33,73 @@ import org.springframework.jdbc.core.RowMapper;
  * @author cdelashmutt
  */
 public class StringCache
-	extends AbstractSQLFireCache
+	extends AbstractColumnDefinedSQLFireCache
 {
-	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getCreateColumns()
-	 */
-	@Override
-	protected String getCreateColumns()
-	{
-		// TODO Auto-generated method stub
-		return "(ID VARCHAR(1024), DATA LONG VARCHAR, PRIMARY KEY(ID)) PARTITION BY PRIMARY KEY";
-	}
+	
+	final List<ColumnDefinition> idColumns = Arrays.asList(new ColumnDefinition("ID", SQLFType.VARCHAR, 1024));
 
 	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getIdType()
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getIdColumns()
 	 */
 	@Override
-	protected int getIdType()
+	protected List<ColumnDefinition> getIdColumns()
 	{
 		// TODO Auto-generated method stub
-		return Types.VARCHAR;
+		return idColumns;
 	}
 
+	final List<ColumnDefinition> dataColumns = Arrays.asList(new ColumnDefinition("DATA", SQLFType.LONGVARCHAR));
 	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getColumnsForGet()
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getDataColumns()
 	 */
 	@Override
-	protected String getColumnsForGet()
+	protected List<ColumnDefinition> getDataColumns()
 	{
-		// TODO Auto-generated method stub
-		return "DATA";
+		return dataColumns;
+	}
+	
+	private PreparedStatementSetter getIdPreparedStatementSetter(final String key)
+	{
+		return new PreparedStatementSetter()
+		{
+			@Override
+			public void setValues(PreparedStatement ps)
+				throws SQLException
+			{
+				ps.setString(1, key);
+			}
+		};
+
+	}
+	
+	/* (non-Javadoc)
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getSelectPreparedStatementSetter(java.lang.Object)
+	 */
+	@Override
+	protected PreparedStatementSetter getSelectPreparedStatementSetter(
+			Object key)
+	{
+		// This will be a string since our ID is a VARCHAR
+		return getIdPreparedStatementSetter((String)key);
 	}
 
+	final RowMapper<String> rowMapper = new RowMapper<String>()
+	{
+		@Override
+		public String mapRow(ResultSet rs, int rowNum)
+			throws SQLException
+		{
+			return rs.getString("DATA");
+		}
+	};
+	
 	/* (non-Javadoc)
 	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getRowMapper()
 	 */
 	@Override
 	protected RowMapper<String> getRowMapper()
 	{
-		return new RowMapper<String>()
-		{
-			@Override
-			public String mapRow(ResultSet rs, int rowNum)
-				throws SQLException
-			{
-				return rs.getString("DATA");
-			}
-		};
-	}
-
-	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getInsertColumns()
-	 */
-	@Override
-	protected String getInsertColumns()
-	{
-		return "ID, DATA";
+		return rowMapper;
 	}
 
 	/* (non-Javadoc)
@@ -112,4 +124,37 @@ public class StringCache
 		};
 	}
 
+	/* (non-Javadoc)
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getDeletePreparedStatementSetter(java.lang.Object)
+	 */
+	@Override
+	protected PreparedStatementSetter getDeletePreparedStatementSetter(
+			Object key)
+	{
+		// This will be a string since our ID is a VARCHAR
+		return getIdPreparedStatementSetter((String)key);
+	}
+
+	/* (non-Javadoc)
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getUpdatePreparedStatementSetter(java.lang.Object, java.lang.Object)
+	 */
+	@Override
+	protected PreparedStatementSetter getUpdatePreparedStatementSetter(
+			Object key, Object value)
+	{
+		final String stringKey = (String) key;
+		final String stringValue = (String) value;
+
+		return new PreparedStatementSetter()
+		{
+			@Override
+			public void setValues(PreparedStatement ps)
+				throws SQLException
+			{
+				//String and key are reversed for a update statement
+				ps.setString(1, stringValue);
+				ps.setString(2, stringKey);
+			}
+		};
+	}
 }

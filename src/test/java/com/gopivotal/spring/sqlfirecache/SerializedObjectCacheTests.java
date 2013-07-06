@@ -64,15 +64,15 @@ public class SerializedObjectCacheTests
 	public void testCreateSchemaAndTable()
 	throws Exception
 	{
+		final SerializedObjectCache cache = new SerializedObjectCache();
 		context.checking(new Expectations() {{
 			oneOf(dataSource).getConnection(); will(returnValue(con));
 			oneOf(con).createStatement(); will(returnValue(stm));
-			oneOf(stm).execute(with(equal("create schema " + SerializedObjectCache.SCHEMA_NAME)));
-			oneOf(stm).execute(with(equal("create table " + SerializedObjectCache.SCHEMA_NAME + ".books ( ID INT NOT NULL, OBJECT BLOB, PRIMARY KEY (ID)) partition by primary key")));
+			oneOf(stm).execute(with(equal("CREATE SCHEMA " + cache.getSchemaName())));
+			oneOf(stm).execute(with(equal("CREATE TABLE " + cache.getSchemaName() + ".books (ID INTEGER, OBJECT BLOB, PRIMARY KEY(ID)) PARTITION BY PRIMARY KEY")));
 			allowing(con);
 			allowing(stm);
 		}});
-		SerializedObjectCache cache = new SerializedObjectCache();
 		cache.setName("books");
 		cache.setDataSource(dataSource);
 		cache.afterPropertiesSet();
@@ -82,20 +82,24 @@ public class SerializedObjectCacheTests
 	public void testCreateTable()
 	throws Exception
 	{
+		final SerializedObjectCache cache = new SerializedObjectCache();
+		cache.setName("books");
 		context.checking(new Expectations() {{
 			oneOf(dataSource).getConnection(); will(returnValue(con));
 			oneOf(con).createStatement(); will(returnValue(stm));
-			oneOf(con).getMetaData(); will(returnValue(dbmd));
-			oneOf(dbmd).getSchemas(null, SerializedObjectCache.SCHEMA_NAME); will(returnValue(schemaRS));
+			oneOf(stm).executeQuery("select * from SYS.SYSSCHEMAS where SCHEMANAME='"+cache.getSchemaName()+"'"); will(returnValue(schemaRS));
 			oneOf(schemaRS).next(); inSequence(schemaRSSeq); will(returnValue(true));
-			oneOf(schemaRS).getString("TABLE_SCHEM"); inSequence(schemaRSSeq); will(returnValue(SerializedObjectCache.SCHEMA_NAME));
 			oneOf(schemaRS).close(); inSequence(schemaRSSeq);
-			oneOf(dbmd).getTables(null, SerializedObjectCache.SCHEMA_NAME, "books", null);
-			oneOf(stm).execute("create table " + SerializedObjectCache.SCHEMA_NAME + ".books ( ID INT NOT NULL, OBJECT BLOB, PRIMARY KEY (ID)) partition by primary key");
+			oneOf(stm).executeQuery("select * from SYS.SYSTABLES where TABLESCHEMANAME='"
+					+ cache.getSchemaName()
+					+ "' and TABLENAME='"
+					+ cache.getName().toUpperCase() + "'"); will(returnValue(tableRS));
+			oneOf(tableRS).next(); inSequence(tableRSSeq); will(returnValue(false));
+			oneOf(tableRS).close(); inSequence(tableRSSeq);
+			oneOf(stm).execute("CREATE TABLE " + cache.getSchemaName() + ".books (ID INTEGER, OBJECT BLOB, PRIMARY KEY(ID)) PARTITION BY PRIMARY KEY");
 			oneOf(stm).close();
 			oneOf(con).close();
 		}});
-		SerializedObjectCache cache = new SerializedObjectCache();
 		cache.setName("books");
 		cache.setDataSource(dataSource);
 		cache.afterPropertiesSet();
@@ -105,20 +109,23 @@ public class SerializedObjectCacheTests
 	public void testNoCreate()
 	throws Exception
 	{
+		final SerializedObjectCache cache = new SerializedObjectCache();
+		cache.setName("books");
 		context.checking(new Expectations() {{
 			oneOf(dataSource).getConnection(); will(returnValue(con));
-			oneOf(con).getMetaData(); will(returnValue(dbmd));
-			oneOf(dbmd).getSchemas(null, SerializedObjectCache.SCHEMA_NAME); will(returnValue(schemaRS));
+			oneOf(con).createStatement(); will(returnValue(stm));
+			oneOf(stm).executeQuery("select * from SYS.SYSSCHEMAS where SCHEMANAME='"+cache.getSchemaName()+"'"); will(returnValue(schemaRS));
 			oneOf(schemaRS).next(); inSequence(schemaRSSeq); will(returnValue(true));
-			oneOf(schemaRS).getString("TABLE_SCHEM"); inSequence(schemaRSSeq); will(returnValue(SerializedObjectCache.SCHEMA_NAME));
 			oneOf(schemaRS).close(); inSequence(schemaRSSeq);
-			oneOf(dbmd).getTables(null, SerializedObjectCache.SCHEMA_NAME, "books", null); will(returnValue(tableRS));
+			oneOf(stm).executeQuery("select * from SYS.SYSTABLES where TABLESCHEMANAME='"
+					+ cache.getSchemaName()
+					+ "' and TABLENAME='"
+					+ cache.getName().toUpperCase() + "'"); will(returnValue(tableRS));
 			oneOf(tableRS).next(); inSequence(tableRSSeq); will(returnValue(true));
-			oneOf(tableRS).getString("TABLE_NAME"); inSequence(tableRSSeq); will(returnValue("books"));
 			oneOf(tableRS).close(); inSequence(tableRSSeq);
+			oneOf(stm).close();
 			oneOf(con).close();
 		}});
-		SerializedObjectCache cache = new SerializedObjectCache();
 		cache.setName("books");
 		cache.setDataSource(dataSource);
 		cache.afterPropertiesSet();

@@ -127,4 +127,16 @@ public class JSONRepositoryTests
 		log.info(sw.prettyPrint());
 	}
 
+
+	@Test
+	public void testCacheUpdate()
+	{
+		Book book = new Book(1, "Lord of the Rings");
+		jsonService.save(String.valueOf(book.getId()), book.toString());
+		book.setTitle("The Hobbit");
+		jsonService.save(String.valueOf(book.getId()), book.toString());
+		String book2 = jsonService.getById(String.valueOf(book.getId()));
+		assertThat(book2, equalTo(book2.toString()));
+	}
+
 }

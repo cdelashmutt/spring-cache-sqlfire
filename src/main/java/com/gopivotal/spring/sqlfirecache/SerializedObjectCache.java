@@ -25,7 +25,8 @@ import java.sql.Blob;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Types;
+import java.util.Arrays;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,71 +43,104 @@ import org.springframework.jdbc.core.RowMapper;
  * @author cdelashmutt
  */
 public class SerializedObjectCache
-	extends AbstractSQLFireCache
+	extends AbstractColumnDefinedSQLFireCache
 {
 	private Logger log = LoggerFactory.getLogger(SerializedObjectCache.class);
 
-	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getCreateColumns()
-	 */
-	protected String getCreateColumns()
-	{
-		return "( ID INT NOT NULL, OBJECT BLOB, PRIMARY KEY (ID)) partition by primary key";
-	}
+	final List<ColumnDefinition> idColumns = Arrays.asList(new ColumnDefinition("ID", SQLFType.INTEGER));
 
 	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getColumnsForGet()
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getIdColumns()
 	 */
-	protected String getColumnsForGet()
+	@Override
+	protected List<ColumnDefinition> getIdColumns()
 	{
 		// TODO Auto-generated method stub
-		return "OBJECT";
+		return idColumns;
 	}
 
+	final List<ColumnDefinition> dataColumns = Arrays.asList(new ColumnDefinition("OBJECT", SQLFType.BLOB));
+	/* (non-Javadoc)
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getDataColumns()
+	 */
+	@Override
+	protected List<ColumnDefinition> getDataColumns()
+	{
+		return dataColumns;
+	}
+	
+	private PreparedStatementSetter getIdPreparedStatementSetter(final Integer key)
+	{
+		return new PreparedStatementSetter()
+		{
+			@Override
+			public void setValues(PreparedStatement ps)
+				throws SQLException
+			{
+				ps.setInt(1, key);
+			}
+		};
+
+	}
+	
+	/* (non-Javadoc)
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getSelectPreparedStatementSetter(java.lang.Object)
+	 */
+	@Override
+	protected PreparedStatementSetter getSelectPreparedStatementSetter(
+			Object key)
+	{
+		// This will be a string since our ID is a VARCHAR
+		return getIdPreparedStatementSetter((Integer)key);
+	}
+
+	final RowMapper<Object> rowMapper = new RowMapper<Object>()
+			{
+		@Override
+		public Object mapRow(ResultSet rs, int rowNum)
+			throws SQLException
+		{
+			Blob blob = rs.getBlob("OBJECT");
+			ObjectInputStream ois = null;
+			Object value = null;
+			try
+			{
+				ois = new ObjectInputStream(blob.getBinaryStream());
+				value = ois.readObject();
+			}
+			catch (Exception e)
+			{
+				throw new RuntimeException("Error de-serializing object", e);
+			}
+			finally
+			{
+				try
+				{
+					if (ois != null)
+						ois.close();
+				}
+				catch (IOException e)
+				{
+					// Can't do anything on a close error
+					log.warn("Error while closing input stream to Blob", e);
+				}
+			}
+			return value;
+		}
+	};
+
+	
 	/* (non-Javadoc)
 	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getRowMapper()
 	 */
+	@Override
 	protected RowMapper<Object> getRowMapper()
 	{
-		return new RowMapper<Object>()
-		{
-			@Override
-			public Object mapRow(ResultSet rs, int rowNum)
-				throws SQLException
-			{
-				Blob blob = rs.getBlob("OBJECT");
-				ObjectInputStream ois = null;
-				Object value = null;
-				try
-				{
-					ois = new ObjectInputStream(blob.getBinaryStream());
-					value = ois.readObject();
-				}
-				catch (Exception e)
-				{
-					throw new RuntimeException("Error de-serializing object", e);
-				}
-				finally
-				{
-					try
-					{
-						if (ois != null)
-							ois.close();
-					}
-					catch (IOException e)
-					{
-						// Can't do anything on a close error
-						log.warn("Error while closing input stream to Blob", e);
-					}
-				}
-				return value;
-			}
-
-		};
+		return rowMapper;
 	}
 
 	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getInsertPreparedStatementSetter(java.lang.Object, java.lang.Object)
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getInsertPreparedStatementSetter(java.lang.Object, java.lang.Object)
 	 */
 	protected PreparedStatementSetter getInsertPreparedStatementSetter(
 			final Object key, final Object value)
@@ -152,19 +186,61 @@ public class SerializedObjectCache
 	}
 
 	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getInsertColumns()
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getDeletePreparedStatementSetter(java.lang.Object)
 	 */
-	protected String getInsertColumns()
+	@Override
+	protected PreparedStatementSetter getDeletePreparedStatementSetter(
+			Object key)
 	{
-		return "ID,OBJECT";
+		// This will be a string since our ID is a VARCHAR
+		return getIdPreparedStatementSetter((Integer)key);
 	}
 
 	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getIdType()
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getUpdatePreparedStatementSetter(java.lang.Object, java.lang.Object)
 	 */
-	protected int getIdType()
+	@Override
+	protected PreparedStatementSetter getUpdatePreparedStatementSetter(
+			final Object key, final Object value)
 	{
-		return Types.INTEGER;
+		final int intKey = (Integer) key;
+
+		return new PreparedStatementSetter()
+		{
+			@Override
+			public void setValues(PreparedStatement ps)
+				throws SQLException
+			{
+				Blob blob = ps.getConnection().createBlob();
+				ObjectOutputStream oos = null;
+				try
+				{
+					oos = new ObjectOutputStream(blob.setBinaryStream(1));
+					oos.writeObject(value);
+					ps.setBlob(1, blob);
+				}
+				catch (IOException e)
+				{
+					throw new RuntimeException(
+							"Error serializing object to blob store: ", e);
+				}
+				finally
+				{
+					try
+					{
+						if (oos != null)
+							oos.close();
+					}
+					catch (IOException e)
+					{
+						log.warn(
+								"Exception while closing Blob output stream: ",
+								e);
+					}
+				}
+				ps.setInt(2, intKey);
+			}
+		};
 	}
 
 }

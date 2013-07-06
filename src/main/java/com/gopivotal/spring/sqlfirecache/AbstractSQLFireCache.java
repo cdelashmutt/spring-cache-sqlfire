@@ -22,6 +22,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
 
 import javax.sql.DataSource;
 
@@ -31,15 +32,13 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.cache.Cache;
 import org.springframework.cache.support.SimpleValueWrapper;
 import org.springframework.dao.DataAccessException;
-import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementSetter;
 import org.springframework.jdbc.core.RowMapper;
 
 /**
- * Abstract base for an SQLFire based Cache implementation for Spring's cache
- * abstraction
+ * A simple base class for caches that use SQL Statements to retrieve and store data in SQLFire.
  * 
  * @author cdelashmutt
  */
@@ -47,7 +46,7 @@ public abstract class AbstractSQLFireCache
 	implements InitializingBean, Cache
 {
 
-	public static final String SCHEMA_NAME = "SPRINGCACHE";
+	private String schemaName = "SPRINGCACHE";
 
 	private DataSource dataSource;
 
@@ -55,16 +54,8 @@ public abstract class AbstractSQLFireCache
 
 	private JdbcTemplate template;
 
-	private Logger log = LoggerFactory.getLogger(AbstractSQLFireCache.class);
-
-	/**
-	 * @param dataSource
-	 *            the dataSource to set
-	 */
-	public void setDataSource(DataSource dataSource)
-	{
-		this.dataSource = dataSource;
-	}
+	private Logger log = LoggerFactory
+			.getLogger(AbstractColumnDefinedSQLFireCache.class);
 
 	/* (non-Javadoc)
 	 * @see org.springframework.beans.factory.InitializingBean#afterPropertiesSet()
@@ -76,6 +67,15 @@ public abstract class AbstractSQLFireCache
 		template = new JdbcTemplate(dataSource);
 		template.execute(new ConnectionCallback<Object>()
 		{
+			private void createTable(Statement stm)
+				throws SQLException
+			{
+				log.debug("Creating table: " + schemaName + "." + getName());
+				String createSQL = getCreateSQL();
+				log.trace(createSQL);
+				stm.execute(createSQL);
+			}
+
 			@Override
 			public Object doInConnection(Connection con)
 				throws SQLException, DataAccessException
@@ -86,14 +86,14 @@ public abstract class AbstractSQLFireCache
 					stm = con.createStatement();
 					ResultSet schemas = stm
 							.executeQuery("select * from SYS.SYSSCHEMAS where SCHEMANAME='"
-									+ SCHEMA_NAME + "'");
+									+ schemaName + "'");
 					boolean foundSchema = false;
 					try
 					{
 						while (schemas.next())
 						{
 							// We only get here if we found the schema.
-							log.trace("Found schema: " + SCHEMA_NAME);
+							log.trace("Found schema: " + schemaName);
 							foundSchema = true;
 							break;
 						}
@@ -105,15 +105,15 @@ public abstract class AbstractSQLFireCache
 					}
 					if (!foundSchema)
 					{
-						log.debug("Creating schema: " + SCHEMA_NAME);
-						stm.execute("create schema " + SCHEMA_NAME);
+						log.debug("Creating schema: " + schemaName);
+						stm.execute("CREATE SCHEMA " + schemaName);
 						createTable(stm);
 					}
 					else
 					{
 						ResultSet tables = stm
 								.executeQuery("select * from SYS.SYSTABLES where TABLESCHEMANAME='"
-										+ SCHEMA_NAME
+										+ schemaName
 										+ "' and TABLENAME='"
 										+ getName().toUpperCase() + "'");
 						boolean foundTable = false;
@@ -145,32 +145,108 @@ public abstract class AbstractSQLFireCache
 				}
 				return null;
 			}
-
-			private void createTable(Statement stm)
-				throws SQLException
-			{
-				log.debug("Creating table: " + SCHEMA_NAME + "." + getName());
-				stm.execute("create table " + SCHEMA_NAME + "." + getName()
-						+ " " + getCreateColumns());
-			}
 		});
 	}
 
-	/**
-	 * Get's the create column string
-	 * 
-	 * @return The create column string
+	/* (non-Javadoc)
+	 * @see org.springframework.cache.Cache#clear()
 	 */
-	protected abstract String getCreateColumns();
+	@Override
+	public void clear()
+	{
+		template.execute(getDeleteSQL());
+	}
+
+	/* (non-Javadoc)
+	 * @see org.springframework.cache.Cache#evict(java.lang.Object)
+	 */
+	@Override
+	public void evict(Object key)
+	{
+		template.update(getDeleteSQL() + " " + getDeleteWhereClause(),
+				getDeletePreparedStatementSetter(key));
+	}
+
+	/* (non-Javadoc)
+	 * @see org.springframework.cache.Cache#get(java.lang.Object)
+	 */
+	@Override
+	public ValueWrapper get(Object key)
+	{
+		try
+		{
+			List<?> results = template.query(getSelectSQL(),
+					getSelectPreparedStatementSetter(key), getRowMapper());
+
+			if (results.size() == 0)
+			{
+				return null;
+			}
+			else if (results.size() > 1)
+			{
+				log.warn("Multiple results returned for cache get select statement.  Check the validity " +
+						"of the create table statement and select statement to ensure that the id " +
+						"column(s) for the table are guarenteed to be unique.");
+				return null;
+			}
+			else
+			{
+				return new SimpleValueWrapper(results.get(0));
+			}
+		}
+		catch (DataAccessException e)
+		{
+			log.warn("Error executing select statement for cache get", e);
+			return null;
+		}
+	}
 
 	/**
-	 * @param name
-	 *            The name to set for this cache
+	 * Returns the create SQL string used for creating the cache table, if needed.
+	 *
+	 * @return The create SQL string.
 	 */
-	public void setName(String name)
-	{
-		this.name = name;
-	}
+	protected abstract String getCreateSQL();
+
+	/**
+	 * Provides a setter that can set any necessary parameters in the delete SQL String.
+	 *
+	 * @param key The key object used to identify a cached object.
+	 * @return The setter that can set parameters on the prepared delete SQL Statement.
+	 */
+	protected abstract PreparedStatementSetter getDeletePreparedStatementSetter(
+			final Object key);
+
+	/**
+	 * Returns the delete SQL statement used to remove every cached object in the table.
+	 *
+	 * @return The delete SQL string.
+	 */
+	protected abstract String getDeleteSQL();
+
+	/**
+	 * Returns a fragment WHERE clause used with the getDeleteSQL statement to remove a single cached object in the table.
+	 *
+	 * @return The delete SQL WHERE clause fragment.
+	 */
+	protected abstract String getDeleteWhereClause();
+
+	/**
+	 * Provides a setter that can set any necessary parameters in the insert SQL String.
+	 *
+	 * @param key The key object used to lookup a cached object.
+	 * @param value The value object to store in the cache.
+	 * @return The setter that can set parameters on the prepared insert SQL Statement.
+	 */
+	protected abstract PreparedStatementSetter getInsertPreparedStatementSetter(
+			final Object key, final Object value);
+
+	/**
+	 * Returns the insert SQL statement used to store cached objects.
+	 *
+	 * @return The insert SQL string.
+	 */
+	protected abstract String getInsertSQL();
 
 	/* (non-Javadoc)
 	 * @see org.springframework.cache.Cache#getName()
@@ -191,52 +267,53 @@ public abstract class AbstractSQLFireCache
 		return null;
 	}
 
-	/* (non-Javadoc)
-	 * @see org.springframework.cache.Cache#get(java.lang.Object)
+	/**
+	 * Maps a returned record from for the execution of the select SQL statement to an object.
+	 *
+	 * @return The row mapper for the select SQL statement.
 	 */
-	@Override
-	public ValueWrapper get(Object key)
-	{
-		try
-		{
-			Object returnVal = template.queryForObject("select "
-					+ getColumnsForGet() + " from " + getFQTableName()
-					+ " where ID=?", new Object[]
-				{ key }, new int[]
-				{ getIdType() }, getRowMapper());
+	protected abstract RowMapper<?> getRowMapper();
 
-			return new SimpleValueWrapper(returnVal);
-		}
-		catch (EmptyResultDataAccessException e)
-		{
-			// no data
-			return null;
-		}
+	/**
+	 * @return the schemaName
+	 */
+	public String getSchemaName()
+	{
+		return schemaName;
 	}
 
 	/**
-	 * Provides the SQL Type of the ID
-	 * 
-	 * @return The SQL type from java.sql.Types for the ID
+	 * Provides a setter that can set any necessary parameters in the select SQL String.
+	 *
+	 * @param key The key object used to lookup a cached object.
+	 * @return The setter that can set parameters on the prepared select SQL Statement.
 	 */
-	protected abstract int getIdType();
+	protected abstract PreparedStatementSetter getSelectPreparedStatementSetter(
+			final Object key);
 
 	/**
-	 * The columns used for a query in a "get" operation.
-	 * 
-	 * These columns are used by the RowMapper provided by the getRowMapper
-	 * method to construct an object.
-	 * 
-	 * @return The column names, separated by commas, needed for the RowMapper.
+	 * Returns the select SQL statement used to lookup cached objects.
+	 *
+	 * @return The select SQL string.
 	 */
-	protected abstract String getColumnsForGet();
+	protected abstract String getSelectSQL();
 
 	/**
-	 * Maps returned rows from SQLFire to objects.
-	 * 
-	 * @return A RowMapper
+	 * Provides a setter that can set any necessary parameters in the update SQL String.
+	 *
+	 * @param key The key object used to identify a cached object.
+	 * @param value The value object to store in the cache.
+	 * @return The setter that can set parameters on the prepared update SQL Statement.
 	 */
-	protected abstract RowMapper<?> getRowMapper();
+	protected abstract PreparedStatementSetter getUpdatePreparedStatementSetter(
+			Object key, Object value);
+
+	/**
+	 * Returns the update SQL statement used to update cached objects.
+	 *
+	 * @return The update SQL string.
+	 */
+	protected abstract String getUpdateSQL();
 
 	/* (non-Javadoc)
 	 * @see org.springframework.cache.Cache#put(java.lang.Object, java.lang.Object)
@@ -244,55 +321,49 @@ public abstract class AbstractSQLFireCache
 	@Override
 	public void put(final Object key, final Object value)
 	{
-		template.update("insert into " + getFQTableName() + "("
-				+ getInsertColumns() + ") VALUES (?,?)",
-				getInsertPreparedStatementSetter(key, value));
+		try
+		{
+			int updateCount = template.update(getUpdateSQL(),
+					getUpdatePreparedStatementSetter(key, value));
+			if (updateCount == 0)
+			{
+				template.update(getInsertSQL(),
+						getInsertPreparedStatementSetter(key, value));
+			}
+		}
+		catch (Exception e)
+		{
+			// Problems putting data into cache shouldn't stop the method.
+			log.warn(
+					"Exception while attempting to update or insert to cache table.",
+					e);
+		}
 	}
 
 	/**
-	 * Provide the column list used for inserting new items into the cache.
-	 * 
-	 * @return A comma separated string specifying the columns to use when
-	 *         inserting records to SQLFire.
+	 * @param dataSource
+	 *            the dataSource to set
 	 */
-	protected abstract String getInsertColumns();
+	public void setDataSource(DataSource dataSource)
+	{
+		this.dataSource = dataSource;
+	}
 
 	/**
-	 * Provides a PreparedStatementSetter used to put values into an insert
-	 * statement
-	 * 
-	 * @param key
-	 *            The key to use for an insert into SQLFire
-	 * @param value
-	 *            The value to store in SQLFire
-	 * @return The PreparedStatementSetter that can properly set up the
+	 * @param name
+	 *            The name to set for this cache
 	 */
-	protected abstract PreparedStatementSetter getInsertPreparedStatementSetter(
-			final Object key, final Object value);
-
-	@Override
-	public void evict(Object key)
+	public void setName(String name)
 	{
-		template.update(getDeleteSQL() + " WHERE ID=?", key);
+		this.name = name;
 	}
 
-	/* (non-Javadoc)
-	 * @see org.springframework.cache.Cache#clear()
+	/**
+	 * @param schemaName the schemaName to set
 	 */
-	@Override
-	public void clear()
+	public void setSchemaName(String schemaName)
 	{
-		template.execute(getDeleteSQL());
-	}
-
-	private String getDeleteSQL()
-	{
-		return "delete from " + getFQTableName();
-	}
-
-	private String getFQTableName()
-	{
-		return SCHEMA_NAME + "." + getName();
+		this.schemaName = schemaName;
 	}
 
 }
