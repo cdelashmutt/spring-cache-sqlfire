@@ -18,7 +18,7 @@
  */
 package com.gopivotal.spring.sqlfirecache;
 
-import org.junit.Assert;
+import org.springframework.util.Assert;
 import org.springframework.jdbc.core.namedparam.BeanPropertySqlParameterSource;
 
 /**
@@ -41,8 +41,9 @@ public class PrependedBeanPropertySqlParameterSource
 	{
 		super(object);
 		this.prepend = prepend;
-		Assert.assertNotNull("Must provide a non-null prepend", prepend);
-		Assert.assertTrue("Must provide a prepend greater than 0 length", prepend.length() > 0);
+		Assert.notNull(prepend, "Must provide a non-null prepend");
+
+		Assert.isTrue(prepend.length() > 0, "Must provide a prepend greater than 0 length");
 	}
 
 	/* (non-Javadoc)
