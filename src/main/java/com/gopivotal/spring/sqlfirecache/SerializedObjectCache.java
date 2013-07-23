@@ -49,21 +49,9 @@ public class SerializedObjectCache
 {
 	private Logger log = LoggerFactory.getLogger(SerializedObjectCache.class);
 
-	final ColumnDefinition idColumn = new ColumnDefinition("ID", SQLFType.INTEGER);
-	final List<ColumnDefinition> idColumns = Arrays.asList(idColumn);
-
-	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getIdColumns()
-	 */
-	@Override
-	protected List<ColumnDefinition> getIdColumns()
-	{
-		// TODO Auto-generated method stub
-		return idColumns;
-	}
-
 	final ColumnDefinition dataColumn = new ColumnDefinition("OBJECT", SQLFType.BLOB);
 	final List<ColumnDefinition> dataColumns = Arrays.asList(dataColumn);
+	
 	/* (non-Javadoc)
 	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getDataColumns()
 	 */
@@ -79,7 +67,7 @@ public class SerializedObjectCache
 		public Object mapRow(ResultSet rs, int rowNum)
 			throws SQLException
 		{
-			Blob blob = rs.getBlob(getValuePrepend() + "OBJECT");
+			Blob blob = rs.getBlob("OBJECT");
 			ObjectInputStream ois = null;
 			Object value = null;
 			try
@@ -141,8 +129,8 @@ public class SerializedObjectCache
 	{
 		final Object key;
 		final Object value;
-		final String prependedIdColumn = getKeyPrepend() + idColumn.getName();
-		final String prependedDataColumn = getValuePrepend() + dataColumn.getName();
+		final String idColumnName = getIdColumn().getName();
+		final String dataColumnName = dataColumn.getName();
 		
 		/**
 		 * TODO: Describe IntBlobParameterSource constructor
@@ -158,15 +146,15 @@ public class SerializedObjectCache
 		@Override
 		public boolean hasValue(String paramName)
 		{
-			return prependedIdColumn.equals(paramName)
-				|| prependedDataColumn.equals(paramName);
+			return idColumnName.equals(paramName)
+				|| dataColumnName.equals(paramName);
 		}
 
 		@Override
 		public Object getValue(String paramName)
 			throws IllegalArgumentException
 		{
-			if(prependedDataColumn.equals(paramName))
+			if(dataColumnName.equals(paramName))
 			{
 				ByteArrayOutputStream bos = new ByteArrayOutputStream();
 				try
@@ -180,7 +168,7 @@ public class SerializedObjectCache
 				}
 				return new SqlLobValue(bos.toByteArray());
 			}
-			else if(prependedIdColumn.equals(paramName))
+			else if(idColumnName.equals(paramName))
 			{
 				return key;
 			}
@@ -193,9 +181,9 @@ public class SerializedObjectCache
 		@Override
 		public int getSqlType(String paramName)
 		{
-			if(prependedDataColumn.equals(paramName))
+			if(dataColumnName.equals(paramName))
 				return Types.BLOB;
-			else if(prependedIdColumn.equals(paramName))
+			else if(idColumnName.equals(paramName))
 			{
 				return Types.INTEGER;
 			}
@@ -208,9 +196,9 @@ public class SerializedObjectCache
 		@Override
 		public String getTypeName(String paramName)
 		{
-			if(prependedDataColumn.equals(paramName))
+			if(dataColumnName.equals(paramName))
 				return "BLOB";
-			else if(prependedIdColumn.equals(paramName))
+			else if(idColumnName.equals(paramName))
 			{
 				return "INTEGER";
 			}

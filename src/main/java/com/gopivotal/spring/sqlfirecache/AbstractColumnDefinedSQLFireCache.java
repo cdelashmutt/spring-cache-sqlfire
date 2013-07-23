@@ -23,12 +23,12 @@ import java.util.List;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.SingleColumnRowMapper;
+import org.springframework.jdbc.core.namedparam.BeanPropertySqlParameterSource;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.util.StringUtils;
 
 import com.google.common.base.Function;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 /**
@@ -46,62 +46,22 @@ public abstract class AbstractColumnDefinedSQLFireCache
 	extends AbstractSQLFireCache
 {
 
-	/**
-	 * TODO: Describe valuePrepend
-	 */
-	private String valuePrepend = "v_";
-
-	/**
-	 * @return the valuePrepend
-	 */
-	public String getValuePrepend()
-	{
-		return valuePrepend;
-	}
-
-	/**
-	 * @param valuePrepend the valuePrepend to set
-	 */
-	public void setValuePrepend(String valuePrepend)
-	{
-		this.valuePrepend = valuePrepend;
-	}
-
-	/**
-	 * TODO: Describe keyPrepend
-	 */
-	private String keyPrepend = "k_";
-
+	private ColumnDefinition idColumn = new ColumnDefinition("k_ID",
+			SQLFType.INTEGER);
 	
 	/**
-	 * @return the keyPrepend
+	 * @return the idColumn
 	 */
-	public String getKeyPrepend()
+	public ColumnDefinition getIdColumn()
 	{
-		return keyPrepend;
+		return idColumn;
 	}
-
-	/**
-	 * @param keyPrepend the keyPrepend to set
-	 */
-	public void setKeyPrepend(String keyPrepend)
-	{
-		this.keyPrepend = keyPrepend;
-	}
-
-	private Function<ColumnDefinition, String> idNameFunction = new Function<ColumnDefinition, String>()
-	{
-		public String apply(ColumnDefinition input)
-		{
-			return keyPrepend + input.getName();
-		}
-	};
 
 	private Function<ColumnDefinition, String> valueNameFunction = new Function<ColumnDefinition, String>()
 	{
 		public String apply(ColumnDefinition input)
 		{
-			return valuePrepend + input.getName();
+			return input.getName();
 		}
 	};
 
@@ -109,19 +69,21 @@ public abstract class AbstractColumnDefinedSQLFireCache
 	 * Creates a Create SQL statement fragment for the specified column
 	 * definitions.
 	 * 
-	 * @param The string to prepend to the column name.
+	 * @param The
+	 *            string to prepend to the column name.
 	 * @param columnDefs
 	 *            The column definitions to build a statement for.
 	 * @return The SQL fragment for the specified columns.
 	 */
-	private String buildCreateColumnsFragment(final String prepend, List<ColumnDefinition> columnDefs)
+	private String buildCreateColumnsFragment(List<ColumnDefinition> columnDefs)
 	{
 		return StringUtils.collectionToDelimitedString(Lists.transform(
 				columnDefs, new Function<ColumnDefinition, String>()
 				{
 					public String apply(ColumnDefinition input)
 					{
-						return prepend + input.getName() + " " + input.buildColumnTypeDefinitionSQL();
+						return input.getName() + " "
+								+ input.buildColumnTypeDefinitionSQL();
 					}
 				}), ", ");
 	}
@@ -134,11 +96,9 @@ public abstract class AbstractColumnDefinedSQLFireCache
 	 *            statement.
 	 * @return The SQL fragement for the primary key clause.
 	 */
-	private String buildPrimaryKeyClause(List<ColumnDefinition> idColumns)
+	private String buildPrimaryKeyClause(ColumnDefinition idColumns)
 	{
-		return "PRIMARY KEY("
-				+ StringUtils.collectionToDelimitedString(
-						Lists.transform(idColumns, idNameFunction), ", ") + ")";
+		return "PRIMARY KEY(" + idColumn.getName() + ")";
 	}
 
 	/*
@@ -150,10 +110,10 @@ public abstract class AbstractColumnDefinedSQLFireCache
 	@Override
 	protected String getCreateSQL()
 	{
-		return "CREATE TABLE " + getFQTableName() + " ("
-				+ buildCreateColumnsFragment(keyPrepend, getIdColumns()) + ", "
-				+ buildCreateColumnsFragment(valuePrepend, getDataColumns()) + ", "
-				+ buildPrimaryKeyClause(getIdColumns()) + ")"
+		return "CREATE TABLE " + getFQTableName() + " (" + idColumn.getName()
+				+ " " + idColumn.buildColumnTypeDefinitionSQL() + ", "
+				+ buildCreateColumnsFragment(getDataColumns()) + ", "
+				+ buildPrimaryKeyClause(idColumn) + ")"
 				+ " PARTITION BY PRIMARY KEY";
 	}
 
@@ -164,8 +124,11 @@ public abstract class AbstractColumnDefinedSQLFireCache
 	 */
 	protected abstract List<ColumnDefinition> getDataColumns();
 
-	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getDeletePreparedStatementSetter(java.lang.Object)
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#
+	 * getDeletePreparedStatementSetter(java.lang.Object)
 	 */
 	@Override
 	protected SqlParameterSource getDeletePreparedStatementSetter(
@@ -175,29 +138,29 @@ public abstract class AbstractColumnDefinedSQLFireCache
 	}
 
 	/**
-	 * Provides a default strategy for producing a primary key based parameter source.
+	 * Provides a default strategy for producing a primary key based parameter
+	 * source.
 	 * 
-	 * Single valued keys are simply returned as the value for the single id column.
+	 * Single valued keys are simply returned as the value for the single id
+	 * column.
 	 * 
-	 * Multi-valued keys are mapped from the property names of the passed object.
-	 *
-	 * @param key The key value object to use.
+	 * Multi-valued keys are mapped from the property names of the passed
+	 * object.
+	 * 
+	 * @param key
+	 *            The key value object to use.
 	 * @return The parameter source
 	 */
 	protected SqlParameterSource getIdParameterSource(final Object key)
 	{
-		if(getIdColumns().size() == 1)
-		{
-			return new MapSqlParameterSource(keyPrepend + getIdColumns().get(0).getName(), key);
-		}
-		else
-		{
-			return new PrependedBeanPropertySqlParameterSource(key, keyPrepend);
-		}
+		return new MapSqlParameterSource(idColumn.getName(), key);
 	}
 
-	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getDeleteSQL()
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see
+	 * com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getDeleteSQL()
 	 */
 	@Override
 	protected String getDeleteSQL()
@@ -205,33 +168,26 @@ public abstract class AbstractColumnDefinedSQLFireCache
 		return "DELETE FROM " + getFQTableName();
 	}
 
-	private Function<ColumnDefinition, String> idNameAndPlaceholderFunction = new Function<ColumnDefinition, String>()
+	private Function<ColumnDefinition, String> nameAndPlaceholderFunction = new Function<ColumnDefinition, String>()
 	{
 		@Override
 		public String apply(ColumnDefinition input)
 		{
-			return keyPrepend + input.getName() + "=" + ":" + keyPrepend + input.getName();
+			return input.getName() + "=" + ":" + input.getName();
 		}
 	};
 
-	private Function<ColumnDefinition, String> valueNameAndPlaceholderFunction = new Function<ColumnDefinition, String>()
-	{
-		@Override
-		public String apply(ColumnDefinition input)
-		{
-			return valuePrepend + input.getName() + "=" + ":" + valuePrepend + input.getName();
-		}
-	};
-
-	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getDeleteWhereClause()
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see
+	 * com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getDeleteWhereClause
+	 * ()
 	 */
 	@Override
 	protected String getDeleteWhereClause()
 	{
-		return "WHERE "
-				+ StringUtils.collectionToDelimitedString(Lists.transform(
-						getIdColumns(), idNameAndPlaceholderFunction), ", ");
+		return "WHERE " + nameAndPlaceholderFunction.apply(idColumn);
 	}
 
 	/**
@@ -244,55 +200,34 @@ public abstract class AbstractColumnDefinedSQLFireCache
 		return getSchemaName() + "." + getName();
 	}
 
-	/**
-	 * Returns the column definitions for the Id columns
+	/*
+	 * (non-Javadoc)
 	 * 
-	 * @return The ordered list of Id columns
-	 */
-	protected abstract List<ColumnDefinition> getIdColumns();
-
-	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getInsertPreparedStatementSetter(java.lang.Object, java.lang.Object)
+	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#
+	 * getInsertPreparedStatementSetter(java.lang.Object, java.lang.Object)
 	 */
 	@Override
 	protected SqlParameterSource getInsertPreparedStatementSetter(
 			final Object key, final Object value)
 	{
-		return new PrioritySqlParameterSource(
-				getPrependedSqlParameterSource(keyPrepend, getIdColumns(), key)
-				, getPrependedSqlParameterSource(valuePrepend, getDataColumns(), value));
+		return new PrioritySqlParameterSource(new MapSqlParameterSource(
+				idColumn.getName(), key), new BeanPropertySqlParameterSource(
+				value));
 	}
 
-	private SqlParameterSource getPrependedSqlParameterSource(final String prepend, final List<ColumnDefinition> columns, final Object obj)
-	{
-		if(columns.size() == 1)
-		{
-			return new MapSqlParameterSource(prepend + columns.get(0).getName(), obj);
-		}
-		else
-		{
-			return new PrependedBeanPropertySqlParameterSource(obj, prepend);
-		}
-	}
-
-	private Function<ColumnDefinition, String> idPlaceHolderFunction = new Function<ColumnDefinition, String>()
+	private Function<ColumnDefinition, String> placeHolderFunction = new Function<ColumnDefinition, String>()
 	{
 		public String apply(ColumnDefinition input)
 		{
-			return ":" + keyPrepend + input.getName();
+			return ":" + input.getName();
 		}
 	};
 
-	private Function<ColumnDefinition, String> valuePlaceHolderFunction = new Function<ColumnDefinition, String>()
-	{
-		public String apply(ColumnDefinition input)
-		{
-			return ":" + valuePrepend + input.getName();
-		}
-	};
-
-	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getInsertSQL()
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see
+	 * com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getInsertSQL()
 	 */
 	@Override
 	protected String getInsertSQL()
@@ -300,35 +235,40 @@ public abstract class AbstractColumnDefinedSQLFireCache
 		String insertSQL = "insert into "
 				+ getFQTableName()
 				+ "("
-				+ StringUtils.collectionToDelimitedString(
-						Lists.transform(getIdColumns(), idNameFunction), ", ")
+				+ idColumn.getName()
 				+ ", "
 				+ StringUtils.collectionToDelimitedString(
-						Lists.transform(getDataColumns(), valueNameFunction), ", ")
+						Lists.transform(getDataColumns(), valueNameFunction),
+						", ")
 				+ ") VALUES ("
-				+ StringUtils.arrayToDelimitedString(Iterables.toArray(
-						Iterables.concat(Iterables.transform(getIdColumns(), idPlaceHolderFunction),
-								Iterables.transform(getDataColumns(), valuePlaceHolderFunction)),
-						String.class), ", ") + ")";
+				+ placeHolderFunction.apply(idColumn)
+				+ ", "
+				+ StringUtils.collectionToDelimitedString(
+						Lists.transform(getDataColumns(), placeHolderFunction),
+						", ") + ")";
 		return insertSQL;
 	}
 
-	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getRowMapper()
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see
+	 * com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getRowMapper()
 	 */
 	@Override
 	protected RowMapper<?> getRowMapper()
 	{
-		if(getDataColumns().size() == 1)
+		if (getDataColumns().size() == 1)
 		{
-			return getSingleColumnRowMapper(getDataColumns().get(0).getType().getJavaType());
+			return getSingleColumnRowMapper(getDataColumns().get(0).getType()
+					.getJavaType());
 		}
 		else
 		{
 			return BeanPropertyRowMapper.newInstance(Object.class);
 		}
 	}
-	
+
 	private <T> SingleColumnRowMapper<T> getSingleColumnRowMapper(Class<T> type)
 	{
 		return new SingleColumnRowMapper<T>(type);
@@ -347,20 +287,23 @@ public abstract class AbstractColumnDefinedSQLFireCache
 		return getIdParameterSource(key);
 	}
 
-	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getSelectSQL()
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see
+	 * com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getSelectSQL()
 	 */
 	@Override
 	protected String getSelectSQL()
 	{
 		return "SELECT "
 				+ StringUtils.collectionToDelimitedString(
-						Lists.transform(getDataColumns(), valueNameFunction), ", ")
+						Lists.transform(getDataColumns(), valueNameFunction),
+						", ")
 				+ " FROM "
 				+ getFQTableName()
 				+ " WHERE "
-				+ StringUtils.collectionToDelimitedString(Lists.transform(
-						getIdColumns(), idNameAndPlaceholderFunction), ", ");
+				+ nameAndPlaceholderFunction.apply(idColumn);
 	}
 
 	/*
@@ -370,16 +313,19 @@ public abstract class AbstractColumnDefinedSQLFireCache
 	 * getUpdatePreparedStatementSetter(java.lang.Object, java.lang.Object)
 	 */
 	@Override
-	protected SqlParameterSource getUpdatePreparedStatementSetter(
-			Object key, Object value)
+	protected SqlParameterSource getUpdatePreparedStatementSetter(Object key,
+			Object value)
 	{
-		return new PrioritySqlParameterSource(
-				getPrependedSqlParameterSource(keyPrepend, getIdColumns(), key)
-				, getPrependedSqlParameterSource(valuePrepend, getDataColumns(), value));		
+		return new PrioritySqlParameterSource(new MapSqlParameterSource(
+				idColumn.getName(), key), new BeanPropertySqlParameterSource(
+				value));
 	}
 
-	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getUpdateSQL()
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see
+	 * com.gopivotal.spring.sqlfirecache.AbstractSQLFireCache#getUpdateSQL()
 	 */
 	@Override
 	protected String getUpdateSQL()
@@ -388,10 +334,10 @@ public abstract class AbstractColumnDefinedSQLFireCache
 				+ getFQTableName()
 				+ " SET "
 				+ StringUtils.collectionToDelimitedString(Lists.transform(
-						getDataColumns(), valueNameAndPlaceholderFunction), ", ")
+						getDataColumns(), nameAndPlaceholderFunction),
+						", ")
 				+ " WHERE "
-				+ StringUtils.collectionToDelimitedString(Lists.transform(
-						getIdColumns(), idNameAndPlaceholderFunction), ", ");
+				+ nameAndPlaceholderFunction.apply(idColumn);
 	}
 
 }

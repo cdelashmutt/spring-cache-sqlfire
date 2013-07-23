@@ -9,35 +9,39 @@
 		http://www.springframework.org/schema/cache http://www.springframework.org/schema/cache/spring-cache.xsd
 		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.1.xsd">
 
-	<import resource="datasource-context.xml"/>
-	
+	<import resource="datasource-context.xml" />
+
 	<bean abstract="true" id="sqlfCache"
-		class="com.gopivotal.spring.sqlfirecache.ConfigurableColumnDefinedSQLFireCache"
+		class="com.gopivotal.spring.sqlfirecache.StringCache"
 		p:dataSource-ref="dataSource" />
-		
-	<bean abstract="true" id="columnDef"
-		class="com.gopivotal.spring.sqlfirecache.ColumnDefinition" />
+
+	<bean abstract="true" id="sqlfSerializedCache"
+		class="com.gopivotal.spring.sqlfirecache.SerializedObjectCache"
+		p:dataSource-ref="dataSource" />
 
 	<bean id="cacheManager" class="org.springframework.cache.support.SimpleCacheManager">
 		<property name="caches">
 			<set>
-				<bean parent="sqlfCache" p:name="books">
-					<property name="dataColumns">
-						<list>
-							<bean parent="columnDef" p:name="id" p:type="INTEGER" />
-							<bean parent="columnDef" p:name="title" p:type="VARCHAR" p:length="255" />
-							<bean parent="columnDef" p:name="author" p:type="VARCHAR" p:length="255" />
-						</list>
-					</property>
-				</bean>
+				<bean parent="sqlfCache" p:name="json" />
+				<bean parent="sqlfSerializedCache" p:name="books" />
 			</set>
 		</property>
 	</bean>
 
+	<context:component-scan base-package="com.gopivotal.spring.sqlfirecache.string" />
 	<context:component-scan base-package="com.gopivotal.spring.sqlfirecache.serialized" />
 
 	<!-- Caching aspects -->
 	<cache:advice id="cacheAdvice" cache-manager="cacheManager">
+		<cache:caching cache="json">
+			<cache:cacheable method="getById" key="#a0" />
+			<cache:cache-put method="save" key="#a0" />
+			<cache:cache-evict method="delete" key="#a0" />
+			<cache:cache-evict method="evict" key="#a0" />
+		</cache:caching>
+	</cache:advice>
+
+	<cache:advice id="cacheAdvice2" cache-manager="cacheManager">
 		<cache:caching cache="books">
 			<cache:cacheable method="getById" />
 			<cache:cache-put method="save" key="#a0.id"
@@ -50,4 +54,10 @@
 		<aop:advisor advice-ref="cacheAdvice"
 			pointcut="execution(* com.gopivotal.spring.sqlfirecache.string.JSONService.*(..))" />
 	</aop:config>
+
+	<aop:config>
+		<aop:advisor advice-ref="cacheAdvice2"
+			pointcut="execution(* com.gopivotal.spring.sqlfirecache.Repository.*(..))" />
+	</aop:config>
+
 </beans>

@@ -37,6 +37,7 @@ public class XMLConfigurationTests
 		manager.getCache("books").clear();
 	}
 
+	@Test
 	public void testManagerCreated()
 		throws Exception
 	{

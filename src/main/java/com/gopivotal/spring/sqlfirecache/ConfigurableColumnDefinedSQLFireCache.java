@@ -50,24 +50,4 @@ public class ConfigurableColumnDefinedSQLFireCache
 		this.dataColumns = dataColumns;
 	}
 
-	List<ColumnDefinition> idColumns = new ArrayList<ColumnDefinition>();
-
-	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getIdColumns()
-	 */
-	@Override
-	protected List<ColumnDefinition> getIdColumns()
-	{
-		// TODO Auto-generated method stub
-		return idColumns;
-	}
-
-	/**
-	 * @param idColumns the idColumns to set
-	 */
-	public void setIdColumns(List<ColumnDefinition> idColumns)
-	{
-		this.idColumns = idColumns;
-	}
-
 }

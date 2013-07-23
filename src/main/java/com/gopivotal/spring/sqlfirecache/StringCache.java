@@ -30,18 +30,6 @@ public class StringCache
 	extends AbstractColumnDefinedSQLFireCache
 {
 	
-	final List<ColumnDefinition> idColumns = Arrays.asList(new ColumnDefinition("ID", SQLFType.VARCHAR, 1024));
-
-	/* (non-Javadoc)
-	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getIdColumns()
-	 */
-	@Override
-	protected List<ColumnDefinition> getIdColumns()
-	{
-		// TODO Auto-generated method stub
-		return idColumns;
-	}
-
 	final List<ColumnDefinition> dataColumns = Arrays.asList(new ColumnDefinition("DATA", SQLFType.LONGVARCHAR));
 	/* (non-Javadoc)
 	 * @see com.gopivotal.spring.sqlfirecache.AbstractColumnDefinedSQLFireCache#getDataColumns()
