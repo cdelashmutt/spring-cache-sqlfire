@@ -17,21 +17,21 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.util.StopWatch;
 
-import com.gopivotal.spring.sqlfirecache.serialized.Book;
+import com.gopivotal.spring.sqlfirecache.serialized.NonSerializableBook;
 
 @ContextConfiguration
 @RunWith(SpringJUnit4ClassRunner.class)
-public class XMLConfigurationTests
+public class ExternalizerTests
 {
 
-	Logger log = LoggerFactory.getLogger(XMLConfigurationTests.class);
+	Logger log = LoggerFactory.getLogger(ExternalizerTests.class);
 
 	@Autowired
 	private CacheManager manager;
 
 	@Autowired
-	@Qualifier("bookRepository")
-	private Repository<Book, Integer> bookRepository;
+	@Qualifier("nonSerializableBookRepository")
+	private Repository<NonSerializableBook, Integer> bookRepository;
 
 	@After
 	public void clearCache()
@@ -58,7 +58,7 @@ public class XMLConfigurationTests
 	{
 		StopWatch sw = new StopWatch("testSave");
 		sw.start();
-		bookRepository.save(new Book(1, "Lord of the Rings"));
+		bookRepository.save(new NonSerializableBook(1, "Lord of the Rings"));
 		sw.stop();
 		log.info(sw.prettyPrint());
 	}
@@ -66,7 +66,7 @@ public class XMLConfigurationTests
 	@Test
 	public void testDelete()
 	{
-		Book book = new Book(1, "Lord of the Rings");
+		NonSerializableBook book = new NonSerializableBook(1, "Lord of the Rings");
 		bookRepository.save(book);
 		bookRepository.delete(book);
 	}
@@ -74,16 +74,16 @@ public class XMLConfigurationTests
 	@Test
 	public void testGetById()
 	{
-		Book book = new Book(1, "Lord of the Rings");
+		NonSerializableBook book = new NonSerializableBook(1, "Lord of the Rings");
 		bookRepository.save(book);
-		Book book2 = bookRepository.getById(book.getId());
+		NonSerializableBook book2 = bookRepository.getById(book.getId());
 		assertThat(book, equalTo(book2));
 	}
 
 	@Test
 	public void testCache()
 	{
-		Book book = new Book(null, "Lord of the Rings");
+		NonSerializableBook book = new NonSerializableBook(null, "Lord of the Rings");
 		book = bookRepository.save(book);
 		StopWatch sw = new StopWatch("testCache");
 		sw.start("uncached");
@@ -99,7 +99,7 @@ public class XMLConfigurationTests
 	public void testCacheEvict()
 	{
 		// Saving with an ID will automatically cache the book
-		Book book = new Book(1, "Lord of the Rings");
+		NonSerializableBook book = new NonSerializableBook(1, "Lord of the Rings");
 		book = bookRepository.save(book);
 		StopWatch sw = new StopWatch("testCacheEvict");
 		sw.start("before delete");
@@ -107,7 +107,7 @@ public class XMLConfigurationTests
 		sw.stop();
 		bookRepository.delete(book);
 		sw.start("after delete");
-		Book book2 = bookRepository.getById(book.getId());
+		NonSerializableBook book2 = bookRepository.getById(book.getId());
 		sw.stop();
 		assertThat(book2, nullValue());
 		log.info(sw.prettyPrint());

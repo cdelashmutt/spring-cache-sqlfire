@@ -27,13 +27,18 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.jdbc.core.support.SqlLobValue;
+
+import com.gopivotal.spring.sqlfirecache.externalizer.ClassDescriptor;
+import com.gopivotal.spring.sqlfirecache.externalizer.Externalizer;
 
 /**
  * A simple SQLFire cache definition that serializes/de-serializes objects into
@@ -61,6 +66,25 @@ public class SerializedObjectCache
 		return dataColumns;
 	}
 
+	private Map<Class<Object>,Externalizer<Object>> externalizers = Collections.emptyMap();
+
+	/**
+	 * @param externalizers the externalizers to set
+	 */
+	public void setExternalizers(
+			Map<Class<Object>, Externalizer<Object>> externalizers)
+	{
+		this.externalizers = externalizers;
+	}
+	
+	/**
+	 * @return the externalizers
+	 */
+	public Map<Class<Object>, Externalizer<Object>> getExternalizers()
+	{
+		return externalizers;
+	}
+	
 	final RowMapper<Object> rowMapper = new RowMapper<Object>()
 			{
 		@Override
@@ -74,6 +98,17 @@ public class SerializedObjectCache
 			{
 				ois = new ObjectInputStream(blob.getBinaryStream());
 				value = ois.readObject();
+				if(value instanceof ClassDescriptor)
+				{
+					Class<? extends Object> clazz = ((ClassDescriptor)value).getClazz();
+					Externalizer<Object> externalizer = externalizers.get(clazz);
+					if(externalizer != null)
+					{
+						value = externalizer.readObject(ois);
+					}
+					else
+						throw new IllegalStateException("No suitable externalizer for serialized class of type: " + clazz.toString());
+				}
 			}
 			catch (Exception e)
 			{
@@ -160,7 +195,17 @@ public class SerializedObjectCache
 				try
 				{
 					ObjectOutputStream oos = new ObjectOutputStream(bos);
-					oos.writeObject(value);
+					Externalizer<Object> externalizer = null;
+					if(value!= null) externalizer = externalizers.get(value.getClass());
+					if(externalizer != null)
+					{
+						oos.writeObject(new ClassDescriptor(value.getClass()));
+						externalizer.writeObject(oos, value);
+					}
+					else
+					{
+						oos.writeObject(value);
+					}
 				}
 				catch(IOException e)
 				{

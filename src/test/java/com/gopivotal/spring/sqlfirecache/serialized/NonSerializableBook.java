@@ -18,23 +18,19 @@
  */
 package com.gopivotal.spring.sqlfirecache.serialized;
 
-import java.io.Serializable;
-
 /**
- * A simple book value object
- * 
+ * A base book that isn't marked serializable
+ *
  * @author cdelashmutt
  */
-public class Book
-implements Serializable
+public class NonSerializableBook
 {
-	private static final long serialVersionUID = 3517735577592770504L;
 
 	/**
 	 * Creates an empty book object
 	 * 
 	 */
-	public Book()
+	public NonSerializableBook()
 	{
 		super();
 	}
@@ -45,7 +41,7 @@ implements Serializable
 	 * @param id
 	 * @param title
 	 */
-	public Book(Integer id, String title)
+	public NonSerializableBook(Integer id, String title)
 	{
 		super();
 		this.id = id;
@@ -73,7 +69,7 @@ implements Serializable
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		Book other = (Book) obj;
+		NonSerializableBook other = (NonSerializableBook) obj;
 		if (id == null)
 		{
 			if (other.id != null)
@@ -147,7 +143,7 @@ implements Serializable
 	@Override
 	public String toString()
 	{
-		return "Book [id=" + id + ", title=" + title + ", author=" + author
+		return "NonSerializableBook [id=" + id + ", title=" + title + ", author=" + author
 				+ "]";
 	}
 

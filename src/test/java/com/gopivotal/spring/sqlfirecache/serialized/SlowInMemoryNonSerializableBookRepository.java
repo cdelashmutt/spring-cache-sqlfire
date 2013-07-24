@@ -30,14 +30,14 @@ import com.gopivotal.spring.sqlfirecache.Repository;
  *
  * @author cdelashmutt
  */
-@Service("bookRepository")
-public class SlowInMemoryBookRepository
-	implements Repository<Book, Integer>
+@Service("nonSerializableBookRepository")
+public class SlowInMemoryNonSerializableBookRepository
+	implements Repository<NonSerializableBook, Integer>
 {
-	Map<Integer,Book> books = new CopyOnWriteHashMap<Integer,Book>();
+	Map<Integer,NonSerializableBook> books = new CopyOnWriteHashMap<Integer,NonSerializableBook>();
 	int nextId = 1;
 	
-	public Book save(Book book)
+	public NonSerializableBook save(NonSerializableBook book)
 	{
 		if(book.getId() == null)
 		{
@@ -50,12 +50,12 @@ public class SlowInMemoryBookRepository
 		return book;
 	}
 	
-	public void delete(Book book)
+	public void delete(NonSerializableBook book)
 	{
 		books.remove(book.getId());
 	}
 	
-	public Book getById(Integer id)
+	public NonSerializableBook getById(Integer id)
 	{
 		try
 		{

@@ -16,55 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package com.gopivotal.spring.sqlfirecache.serialized;
+package com.gopivotal.spring.sqlfirecache.externalizer;
 
-import java.util.Map;
-
-import org.springframework.stereotype.Service;
-
-import com.gemstone.gemfire.internal.util.concurrent.CopyOnWriteHashMap;
-import com.gopivotal.spring.sqlfirecache.Repository;
+import java.io.Serializable;
 
 /**
- * A simulated slow repository for books.
+ * A class to describe the contents of the object stream.
  *
  * @author cdelashmutt
  */
-@Service("bookRepository")
-public class SlowInMemoryBookRepository
-	implements Repository<Book, Integer>
+public class ClassDescriptor
+implements Serializable
 {
-	Map<Integer,Book> books = new CopyOnWriteHashMap<Integer,Book>();
-	int nextId = 1;
+	private static final long serialVersionUID = 1L;
 	
-	public Book save(Book book)
+	private final Class<? extends Object> clazz;
+	
+	public ClassDescriptor(Class<? extends Object> class1)
 	{
-		if(book.getId() == null)
-		{
-			synchronized(this)
-			{
-				book.setId(nextId++);
-			}
-		}
-		books.put(book.getId(),book);
-		return book;
+		this.clazz = class1;
 	}
 	
-	public void delete(Book book)
+	public Class<? extends Object> getClazz()
 	{
-		books.remove(book.getId());
-	}
-	
-	public Book getById(Integer id)
-	{
-		try
-		{
-			Thread.sleep(5);
-		}
-		catch (InterruptedException e)
-		{
-			//Ignore
-		}
-		return books.get(id);
+		return clazz;
 	}
 }
