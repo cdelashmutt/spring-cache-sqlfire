@@ -12,31 +12,23 @@
 	<import resource="datasource-context.xml"/>
 	
 	<bean abstract="true" id="sqlfCache"
-		class="com.gopivotal.spring.sqlfirecache.StringCache"
-		p:dataSource-ref="dataSource" p:throwExceptions="true"/>
+		class="com.gopivotal.spring.sqlfirecache.SerializedObjectCache"
+		p:dataSource-ref="dataSource" p:throwExceptions="true">
+			<property name="externalizers">
+				<map key-type="java.lang.Class" value-type="com.gopivotal.spring.sqlfirecache.Externalizer">
+					<entry key="org.apache.cxf.jaxrs.impl.ResponseImpl">
+						<bean class="com.gopivotal.spring.sqlfirecache.externalizer.impl.CXFResponseExternalizer" />
+					</entry>
+				</map>
+			</property>
+	</bean>
 
 	<bean id="cacheManager" class="org.springframework.cache.support.SimpleCacheManager">
 		<property name="caches">
 			<set>
-				<bean parent="sqlfCache" p:name="json" />
+				<bean parent="sqlfCache" p:name="responses" />
 			</set>
 		</property>
 	</bean>
 
-	<context:component-scan base-package="com.gopivotal.spring.sqlfirecache.string" />
-
-	<!-- Caching aspects -->
-	<cache:advice id="cacheAdvice" cache-manager="cacheManager">
-		<cache:caching cache="json">
-			<cache:cacheable method="getById" key="#a0" />
-			<cache:cache-put method="save" key="#a0" />
-			<cache:cache-evict method="delete" key="#a0" />
-			<cache:cache-evict method="evict" key="#a0" />
-		</cache:caching>
-	</cache:advice>
-
-	<aop:config>
-		<aop:advisor advice-ref="cacheAdvice"
-			pointcut="execution(* com.gopivotal.spring.sqlfirecache.string.JSONService.*(..))" />
-	</aop:config>
 </beans>

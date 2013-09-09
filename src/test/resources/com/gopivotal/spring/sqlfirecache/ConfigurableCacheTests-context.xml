@@ -13,7 +13,7 @@
 	
 	<bean abstract="true" id="sqlfCache"
 		class="com.gopivotal.spring.sqlfirecache.ConfigurableColumnDefinedSQLFireCache"
-		p:dataSource-ref="dataSource" />
+		p:dataSource-ref="dataSource" p:throwExceptions="true"/>
 		
 	<bean abstract="true" id="columnDef"
 		class="com.gopivotal.spring.sqlfirecache.ColumnDefinition" />

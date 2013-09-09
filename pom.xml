@@ -29,13 +29,13 @@
 			<artifactId>slf4j-api</artifactId>
 			<version>${org.slf4j.version}</version>
 		</dependency>
-   		<dependency>
+		<dependency>
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-log4j12</artifactId>
 			<version>${org.slf4j.version}</version>
 			<scope>runtime</scope>
 		</dependency>
-    		<dependency>
+		<dependency>
 			<groupId>log4j</groupId>
 			<artifactId>log4j</artifactId>
 			<version>1.2.14</version>
@@ -55,7 +55,17 @@
 			<artifactId>spring-tx</artifactId>
 			<version>${spring.framework.version}</version>
 		</dependency>
-		
+		<dependency>
+			<groupId>org.apache.cxf</groupId>
+			<artifactId>cxf-rt-frontend-jaxrs</artifactId>
+			<version>2.4.2</version>
+		</dependency>
+		<dependency>
+			<groupId>com.thoughtworks.xstream</groupId>
+			<artifactId>xstream</artifactId>
+			<version>1.4.4</version>
+		</dependency>
+
 		<!-- Test dependencies -->
 		<dependency>
 			<groupId>junit</groupId>
@@ -118,13 +128,9 @@
 			<version>2.7.5</version>
 			<scope>test</scope>
 		</dependency>
-		<!-- Thin client driver
-		<dependency>
-			<groupId>com.vmware.sqlfire</groupId>
-			<artifactId>sqlfireclient</artifactId>
-			<version>1.0.3</version>
-			<scope>test</scope>
-		</dependency> -->
+		<!-- Thin client driver <dependency> <groupId>com.vmware.sqlfire</groupId> 
+			<artifactId>sqlfireclient</artifactId> <version>1.0.3</version> <scope>test</scope> 
+			</dependency> -->
 		<dependency>
 			<groupId>org.codehaus.jackson</groupId>
 			<artifactId>jackson-mapper-asl</artifactId>
@@ -151,7 +157,7 @@
 					<target>1.6</target>
 				</configuration>
 			</plugin>
- 
+
 		</plugins>
-	</build> 
+	</build>
 </project>

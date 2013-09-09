@@ -60,6 +60,8 @@ public abstract class AbstractSQLFireCache
 
 	private Logger log = LoggerFactory
 			.getLogger(AbstractColumnDefinedSQLFireCache.class);
+	
+	private boolean throwExceptions = false;
 
 	/*
 	 * (non-Javadoc)
@@ -198,10 +200,18 @@ public abstract class AbstractSQLFireCache
 			}
 			else if (results.size() > 1)
 			{
-				log.warn("Multiple results returned for cache get select statement.  Check the validity "
+				String message = "Multiple results returned for cache get select statement.  Check the validity "
 						+ "of the create table statement and select statement to ensure that the id "
-						+ "column(s) for the table are guarenteed to be unique.");
-				return null;
+						+ "column(s) for the table are guarenteed to be unique.";
+				if(throwExceptions)
+				{
+					throw new RuntimeException(message);
+				}
+				else
+				{	
+					log.warn(message);
+					return null;
+				}
 			}
 			else
 			{
@@ -210,8 +220,15 @@ public abstract class AbstractSQLFireCache
 		}
 		catch (DataAccessException e)
 		{
-			log.warn("Error executing select statement for cache get", e);
-			return null;
+			if(throwExceptions)
+			{
+				throw new RuntimeException(e);
+			}
+			else
+			{
+				log.warn("Error executing select statement for cache get", e);
+				return null;
+			}
 		}
 	}
 
@@ -392,10 +409,17 @@ public abstract class AbstractSQLFireCache
 		}
 		catch (Exception e)
 		{
-			// Problems putting data into cache shouldn't stop the method.
-			log.warn(
-					"Exception while attempting to update or insert to cache table.",
-					e);
+			if(throwExceptions)
+			{
+				throw new RuntimeException(e);
+			}
+			else
+			{
+				// Problems putting data into cache shouldn't stop the method.
+				log.warn(
+						"Exception while attempting to update or insert to cache table.",
+						e);
+			}
 		}
 	}
 
@@ -426,4 +450,20 @@ public abstract class AbstractSQLFireCache
 		this.schemaName = schemaName;
 	}
 
+	/**
+	 * @return the throwExceptions setting.
+	 */
+	public boolean isThrowExceptions()
+	{
+		return throwExceptions;
+	}
+
+	/**
+	 * @param throwExceptions Sets whether exceptions are thrown by the cache, or simply logged as warnings.
+	 */
+	public void setThrowExceptions(boolean throwExceptions)
+	{
+		this.throwExceptions = throwExceptions;
+	}
+	
 }

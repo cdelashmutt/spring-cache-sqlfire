@@ -13,11 +13,11 @@
 
 	<bean abstract="true" id="sqlfCache"
 		class="com.gopivotal.spring.sqlfirecache.StringCache"
-		p:dataSource-ref="dataSource" />
+		p:dataSource-ref="dataSource" p:throwExceptions="true" />
 
 	<bean abstract="true" id="sqlfSerializedCache"
 		class="com.gopivotal.spring.sqlfirecache.SerializedObjectCache"
-		p:dataSource-ref="dataSource" />
+		p:dataSource-ref="dataSource" p:throwExceptions="true" />
 
 	<bean id="cacheManager" class="org.springframework.cache.support.SimpleCacheManager">
 		<property name="caches">
